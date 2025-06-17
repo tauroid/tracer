@@ -2,9 +2,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import TYPE_CHECKING, Any, cast
 
-from frozendict import frozendict
-
-from ..cache import cache
+from frozendict import deepfreeze, frozendict
 
 if TYPE_CHECKING:
     from . import PathsOf
@@ -40,64 +38,81 @@ def covers[T](self: PathsOf[T], other: PathsOf[T]) -> bool:
         return True
 
     for key, paths in other.items():
-        match key:
-            # PathsOf keys are weird but how else to do wildcarding
-            # NOTE this depends on PathsOf keys having key == paths
-            #      which is not an entirely 100% assured proposition
-            case PathsOf():
-                if not any(
-                    cast(PathsOf[Any], self_key).covers(cast(PathsOf[Any], key))
-                    for self_key in self
-                    if isinstance(self_key, PathsOf)
-                ):
-                    return False
-            case _:
-                if key not in self or not self[key].covers(paths):
-                    return False
+        if key in self and self[key].covers(paths):
+            continue
+
+        # Could be inexact match - currently only doing PathsOf covers
+        # PathsOf / normal (not normal covers PathsOf)
+
+        covering = False
+        for self_key, self_paths in self.items():
+            if not isinstance(self_key, PathsOf):
+                continue
+
+            paths_of_self_key: PathsOf[Any] = self_key
+            paths_of_key: PathsOf[Any] = (
+                key if isinstance(key, PathsOf) else PathsOf(key)
+            )
+
+            if paths_of_self_key.covers(paths_of_key) and self_paths.covers(paths):
+                covering = True
+
+        if not covering:
+            return False
 
     return True
 
 
-@property
-@cache
-def lub[T](self: PathsOf[T]) -> PathsOf[T] | None:
-    r"""
-    Least upper bound of leaf nodes viewing parent-child relationship as poset
+def _remove_lowest_level[
+    T
+](self: PathsOf[T], depth: int = 0) -> tuple[PathsOf[T], int] | None:
+    from . import PathsOf
 
-                                    --> x
-                o            o           o
-                |            |
-            --> o        --> o
-            / \           |
-            o   o          o
-                |\
-                o o
-    """
-    match tuple(self.items()):
-        case ():
-            return None
-        case (k, v),:
-            if v.lub is not None:
-                return replace(
-                    self,
-                    prototype=self.type,
-                    explicit_instance=None,
-                    explicit_paths=frozendict({k: v.lub}),
-                )
-            else:
-                return replace(
-                    self,
-                    prototype=self.type,
-                    explicit_instance=None,
-                    explicit_paths=frozendict({}),
-                )
-        case _:
-            return replace(
-                self,
-                prototype=self.type,
-                explicit_instance=None,
-                explicit_paths=frozendict({}),
-            )
+    if not self.paths:
+        return None
+
+    reduced = tuple(
+        (key, reduced_child, reduced_child_depth)
+        for key, child in self.items()
+        for reduced_child_pair in (_remove_lowest_level(child, depth + 1),)
+        if reduced_child_pair is not None
+        for reduced_child, reduced_child_depth in (reduced_child_pair,)
+    )
+
+    if not reduced:
+        return PathsOf(self.type, sequence_length=self.sequence_length), depth
+
+    reduced_child_keys, reduced_children, reduced_child_depths = zip(*reduced)
+
+    max_reduced_child_depth = max(reduced_child_depths)
+
+    return (
+        PathsOf(self.type, sequence_length=self.sequence_length).eg(
+            {
+                **self,
+                **{
+                    key: reduced_child
+                    for key, reduced_child, reduced_child_depth in zip(
+                        reduced_child_keys, reduced_children, reduced_child_depths
+                    )
+                    if reduced_child_depth == max_reduced_child_depth
+                },
+            }
+        ),
+        max_reduced_child_depth,
+    )
+
+
+def remove_lowest_level_or_none[T](self: PathsOf[T]) -> PathsOf[T] | None:
+    removed = _remove_lowest_level(self)
+    return removed[0] if removed else None
+
+
+def remove_lowest_level[T](self: PathsOf[T]) -> PathsOf[T]:
+    removed = remove_lowest_level_or_none(self)
+    if removed is None:
+        raise Exception(f"{self} has no children")
+    return removed
 
 
 def merge[T](self: PathsOf[T], other: PathsOf[T]) -> PathsOf[T]:

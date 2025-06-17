@@ -1,7 +1,17 @@
 from __future__ import annotations
 from dataclasses import fields, is_dataclass
-from typing import TYPE_CHECKING, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Mapping,
+    cast,
+    get_origin,
+)
+
 from ..cache import cache
+from ..comprehension_idioms import assert_isinstance
+from ..type_manipulation import annotation_type
 
 from .hole import Hole
 
@@ -21,8 +31,27 @@ def assembled[T](self: PathsOf[T]) -> T:
     if is_dataclass(self.type):
         return self.type(
             **{
-                f.name: self.get(f.name, PathsOf(f.type, Hole())).assembled
+                f.name: self.get(
+                    f.name,
+                    PathsOf(
+                        annotation_type(f.type, ctx_class=self.type),
+                        Hole(),
+                    ),
+                ).assembled
                 for f in fields(self.type)
+            }
+        )
+
+    origin = get_origin(self.type) or self.type
+
+    if issubclass(origin, Mapping):
+        return cast(Callable[[Any], T], origin)(
+            {
+                paths["key"].assembled if "key" in paths else Hole(): (
+                    paths["value"].assembled if "value" in paths else Hole()
+                )
+                for key, paths in self.items()
+                if not assert_isinstance(key, PathsOf, False)
             }
         )
 

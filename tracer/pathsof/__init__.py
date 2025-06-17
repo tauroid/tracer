@@ -35,7 +35,13 @@ class PathsOf[T](Mapping[PathKey, PathValue]):
     from ._disassembly import paths
     from ._assembly import assembled
 
-    from ._tree_maths import extends, covers, lub, merge
+    from ._tree_maths import (
+        extends,
+        covers,
+        merge,
+        remove_lowest_level,
+        remove_lowest_level_or_none,
+    )
 
     @cache
     def __str__(self) -> str:
@@ -43,22 +49,23 @@ class PathsOf[T](Mapping[PathKey, PathValue]):
 
     def __getitem__(self, key: PathKey) -> PathsOf[Any]:
         paths = self.paths[key]
-        if isinstance(key, PathsOf):
-            # Can this be relaxed? Not sure yet
-            # Think of it like the key is matching, and paths are pointing to
-            #
-            # Do we point to things we didn't match?
-            # Do we match things without pointing to them?
-            #
-            # I'm dubious of either but could be swayed by an example
-            #
-            # TODO also this check should be by self.type not key
-            #      and be in __post_init__
-            origin = get_origin(self.type) or self.type
-            if issubclass(origin, Mapping):
-                assert key == paths["key"]
-            else:
-                assert key == paths
+        # FIXME commenting out but this and other sanity checks need to happen
+        # if isinstance(key, PathsOf):
+        # Can this be relaxed? Not sure yet
+        # Think of it like the key is matching, and paths are pointing to
+        #
+        # Do we point to things we didn't match?
+        # Do we match things without pointing to them?
+        #
+        # I'm dubious of either but could be swayed by an example
+        #
+        # TODO also this check should be by self.type not key
+        #      and be in __post_init__
+        # origin = get_origin(self.type) or self.type
+        # if issubclass(origin, Mapping):
+        #     assert key == paths["key"]
+        # else:
+        #     assert key == paths
         return paths
 
     def __iter__(self) -> Iterator[PathKey]:

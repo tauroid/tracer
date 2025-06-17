@@ -1,4 +1,12 @@
+import sys
 from typing import Any, Collection, get_origin
+
+
+def annotation_type(t: type[Any] | str, *, ctx_class: type[Any] | None) -> type[Any]:
+    if isinstance(t, str):
+        return eval(t, vars(sys.modules[ctx_class.__module__]))
+    else:
+        return t
 
 
 def instance_union_member(inst: Any, union: Collection[type[Any]]) -> type[Any]:

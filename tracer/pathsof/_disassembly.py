@@ -14,7 +14,7 @@ from typing import (
 
 
 from ..cache import cache
-from ..type_manipulation import instance_union_member
+from ..type_manipulation import annotation_type, instance_union_member
 
 from .mapping import MappingItem
 
@@ -54,7 +54,7 @@ def paths[T](self: PathsOf[T]) -> Mapping[PathKey, PathsOf[Any]]:
     if is_dataclass(self.instance):
         return {
             f.name: PathsOf(
-                f.type,
+                annotation_type(f.type, ctx_class=self.type),
                 getattr(self.instance, f.name),
             )
             for f in fields(self.instance)

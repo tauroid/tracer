@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Mapping, get_origin
+from typing import TYPE_CHECKING, Any, Mapping, get_origin
 
 from ..cache import cache
 
@@ -19,17 +19,17 @@ def as_indent_tree[T](self: PathsOf[T], level: int = 0) -> str:
 
     s = "\n"
     if self.paths:
+        # origin = get_origin(self.type) or self.type
         for key, paths in self.paths.items():
-            origin = get_origin(self.type) or self.type
-            if issubclass(origin, Mapping):
-                # Cheesy Mapping special treatment
-                if isinstance(key, PathsOf):
-                    key_str = key._as_key_str
-                else:
-                    key_str = repr(key)
-                key_str += " =>"
-                paths = paths["value"]
-            elif isinstance(key, PathsOf):
+            # if issubclass(origin, Mapping):
+            #     # Cheesy Mapping special treatment
+            #     if isinstance(key, PathsOf):
+            #         key_str = key._as_key_str
+            #     else:
+            #         key_str = repr(key)
+            #     key_str += " =>"
+            #     paths = paths.get("value", PathsOf(Any, None))
+            if isinstance(key, PathsOf):
                 key_str = key._as_key_str
             else:
                 key_str = str(key)

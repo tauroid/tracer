@@ -1,60 +1,58 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Callable, Collection, Self
+from typing import Callable, Collection
 
 
 from .cache import cache
 from .pathsof import PathsOf
 
 
-def _forward_from_links[
+def _forward_from_link[
     S, T
-](
-    t_type: type[T],
-    links: Collection[tuple[PathsOf[S], PathsOf[T]]],
-) -> Callable[
+](t_type: type[T], link_source: PathsOf[S], link_target: PathsOf[T]) -> Callable[
     [PathsOf[S]], PathsOf[T]
 ]:
     def forward(s: PathsOf[S]) -> PathsOf[T]:
-        t = PathsOf(t_type)
-        for link_source, link_target in links:
-            if s.covers(link_source):
-                t = t.merge(link_target)
-        return t
+        if s.covers(link_source):
+            return link_target
+        else:
+            return PathsOf(t_type)
 
     return forward
+
+
+def disjunction[
+    S, T
+](s_type: type[S], t_type: type[T], members: Collection[Tracer[S, T]]) -> Tracer[S, T]:
+
+    def forward(s: PathsOf[S]) -> PathsOf[T]:
+        t = PathsOf(t_type)
+        for member in members:
+            t = t.merge(member.forward(s))
+        return t
+
+    def backward(t: PathsOf[T]) -> PathsOf[S]:
+        s = PathsOf(s_type)
+        for member in members:
+            s = s.merge(member.backward(t))
+        return s
+
+    return Tracer(forward=forward, backward=backward)
+
+
+def link[
+    S, T
+](s_type: type[S], t_type: type[T], s: PathsOf[S], t: PathsOf[T]) -> Tracer[S, T]:
+    return Tracer(
+        forward=_forward_from_link(t_type, s, t),
+        backward=_forward_from_link(s_type, t, s),
+    )
 
 
 @dataclass(frozen=True, kw_only=True)
 class Tracer[S, T]:
     forward: Callable[[PathsOf[S]], PathsOf[T]]
     backward: Callable[[PathsOf[T]], PathsOf[S]]
-
-    @classmethod
-    def from_links(
-        cls,
-        s_type: type[S],
-        t_type: type[T],
-        *,
-        links: Collection[tuple[PathsOf[S], PathsOf[T]]],
-    ) -> Self:
-        """
-        TODO do BasicRelation / Copy in here
-
-        This has reminded me of an aspect missing so far in tracer.
-
-        We're only modelling "this definitely is associated".
-
-        We're not modelling "this could be associated if you had also selected
-        this other stuff".
-
-        So, NOTE, reminder about that.
-        """
-        links_backward = tuple((t, s) for s, t in links)
-        return cls(
-            forward=_forward_from_links(t_type, links),
-            backward=_forward_from_links(s_type, links_backward),
-        )
 
     def _check_roundtripping(self, s: PathsOf[S], t: PathsOf[T]):
         print(f"Start: {s}")
@@ -84,7 +82,7 @@ class Tracer[S, T]:
 
         self._check_roundtripping(s, t)
 
-        self._check_coherence(s.lub, t0, False)
+        self._check_coherence(s.remove_lowest_level_or_none(), t0, False)
 
     def trace(self, s: PathsOf[S]) -> PathsOf[T]:
         t = self.forward(s)
