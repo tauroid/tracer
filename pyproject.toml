@@ -1,0 +1,6 @@
+[project]
+name="tracer"
+version="0+local"
+dynamic=["dependencies"]
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
