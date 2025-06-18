@@ -1,44 +1,35 @@
 from __future__ import annotations
-from dataclasses import replace
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
-from frozendict import deepfreeze, frozendict
+from frozendict import frozendict
 
 if TYPE_CHECKING:
     from . import PathsOf
 
 
-def extends[T](self: PathsOf[T], other: PathsOf[T]) -> bool:
+def covers[
+    T
+](
+    self: PathsOf[T], other: PathsOf[T], *, all_the_way_to_the_leaves: bool = False
+) -> bool:
     """
-    DEPRECATED?
-
     If we have at least all of `other`'s paths and don't conflict
 
-    Purpose of this is not to lose detail in the round trip (though we might
-    get conflicting sum branches which would confuse things)
-
-    NOTE "Don't conflict" might not actually be meaningful if we do nothing
-            about sum type conflicts
-    """
-    # NOTE sum types different maybe?
-    # FIXME good report
-    return all(key in self and self[key].extends(paths) for key, paths in other.items())
-
-
-def covers[T](self: PathsOf[T], other: PathsOf[T]) -> bool:
-    """
-    Same as `extends` but `other` is allowed to have subpaths of our termini
+    `all_the_way_to_the_leaves` means what it says, if it's False then `other`
+    can extend past `self`'s leaves as long as it's on subtrees of those leaves
 
     FIXME good report
     """
     # Importing properly seems to have inevitable loop
     from . import PathsOf
 
-    if not self.paths:
+    if not all_the_way_to_the_leaves and not self.paths:
         return True
 
     for key, paths in other.items():
-        if key in self and self[key].covers(paths):
+        if key in self and self[key].covers(
+            paths, all_the_way_to_the_leaves=all_the_way_to_the_leaves
+        ):
             continue
 
         # Could be inexact match - currently only doing PathsOf covers
@@ -54,13 +45,21 @@ def covers[T](self: PathsOf[T], other: PathsOf[T]) -> bool:
                 key if isinstance(key, PathsOf) else PathsOf(key)
             )
 
-            if paths_of_self_key.covers(paths_of_key) and self_paths.covers(paths):
+            if paths_of_self_key.covers(
+                paths_of_key, all_the_way_to_the_leaves=all_the_way_to_the_leaves
+            ) and self_paths.covers(
+                paths, all_the_way_to_the_leaves=all_the_way_to_the_leaves
+            ):
                 covering = True
 
         if not covering:
             return False
 
     return True
+
+
+def extends[T](self: PathsOf[T], other: PathsOf[T]) -> bool:
+    return self.covers(other, all_the_way_to_the_leaves=True)
 
 
 def _remove_lowest_level[

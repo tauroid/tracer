@@ -1,10 +1,13 @@
 from __future__ import annotations
 from dataclasses import dataclass
+import logging
 from typing import Callable, Collection
 
 
 from .cache import cache
 from .pathsof import PathsOf
+
+logger = logging.getLogger()
 
 
 def _forward_from_link[
@@ -55,16 +58,11 @@ class Tracer[S, T]:
     backward: Callable[[PathsOf[T]], PathsOf[S]]
 
     def _check_roundtripping(self, s: PathsOf[S], t: PathsOf[T]):
-        print(f"Start: {s}")
-        print(f"Forward: {t}")
+        logger.debug(f"Start: {s}")
+        logger.debug(f"Forward: {t}")
         s_ = self.backward(t)
-        print(f"Backward again: {s_}")
-        # This used to be `extends` - that has some guarantee specificity
-        # is not lost (though with sum types that's questionable)
-        #
-        # `covers` allows information to be lost (but still we have to map back
-        # to something at least containing all we originally had)
-        assert s_.covers(s), f"{s_} does not cover {s}"
+        logger.debug(f"Backward again: {s_}")
+        assert s_.extends(s), f"{s_} does not extend {s}"
 
     def _check_coherence(
         self,
@@ -78,7 +76,7 @@ class Tracer[S, T]:
         t = self.forward(s)
 
         if not skip_target_check:
-            assert t0.extends(t)
+            assert t.covers(t0), f"{t} does not cover {t0}"
 
         self._check_roundtripping(s, t)
 
