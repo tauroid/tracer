@@ -81,13 +81,16 @@ flat_to_tree = disjunction(
     ),
 )
 
+a_value_start = PathsOf(Collection[Flat]).eg([PathsOf(Flat), "a"], PathsOf("1"))
+a_value_end = PathsOf(A).eg(["a", PathsOf(str), "key"], PathsOf("1"))
+
 
 def test_a_forward():
-    assert flat_to_tree.trace(a_start) == a_end
+    assert flat_to_tree.trace(a_value_start) == a_value_end
 
 
 def test_a_backward():
-    assert flat_to_tree.reverse.trace(a_end) == a_start
+    assert flat_to_tree.reverse.trace(a_value_end) == a_value_start
 
 
 def test_b_forward():

@@ -1,7 +1,9 @@
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import logging
-from typing import Callable, Collection
+from typing import Any, Callable, Collection
+
+from frozendict import frozendict
 
 
 from .cache import cache
@@ -10,18 +12,86 @@ from .pathsof import PathsOf
 logger = logging.getLogger()
 
 
+def _get_identical_leaf_subtree[
+    T
+](possibilities: PathsOf[T], selection: PathsOf[T]) -> PathsOf[Any]:
+    # `not selection` means the selection was above the `possibilities` leaves.
+    # In this case we don't want a subtree (there being a subtree in another
+    # branch could be meaningful, but I'm choosing to complain rather than
+    # implicitly substitute a copy, given the user is being vague).
+    if not possibilities or not selection:
+        return selection
+
+    first, *rest = (
+        _get_identical_leaf_subtree(possibilities[key], selection[key])
+        # FIXME wildcards
+        for key in possibilities
+    )
+
+    for subtree in rest:
+        if subtree != first:
+            raise Exception(f"Different subtrees in copy: {first} and {subtree}")
+
+    return first
+
+
+def _place_leaf_subtree[
+    T
+](paths_of_target: PathsOf[T], subtree: PathsOf[Any]) -> PathsOf[T]:
+    """FIXME typecheckinggg"""
+    if not paths_of_target:
+        return subtree
+
+    return replace(
+        paths_of_target,
+        explicit_instance=None,
+        explicit_paths=frozendict(
+            {
+                key: _place_leaf_subtree(paths, subtree)
+                for key, paths in paths_of_target.items()
+            }
+        ),
+    )
+
+
 def _forward_from_link[
     S, T
-](t_type: type[T], link_source: PathsOf[S], link_target: PathsOf[T]) -> Callable[
-    [PathsOf[S]], PathsOf[T]
-]:
+](
+    t_type: type[T], link_source: PathsOf[S], link_target: PathsOf[T], copy: bool = True
+) -> Callable[[PathsOf[S]], PathsOf[T]]:
+    """
+    `copy` determines what to do about subpaths if there are any
+
+    By default (`True`) it will copy the subtrees in `s` of the leaves of
+    `link_source`, to under the leaves of `link_target`. For this to be
+    coherent, it first makes sure all the source subtrees are the same.
+    Then, so are all the target subtrees.
+
+    FIXME this needs typechecking
+
+    `False` just means it outputs the link target directly regardless of subpaths
+    """
+
     def forward(s: PathsOf[S]) -> PathsOf[T]:
         if s.covers(link_source):
+            if copy:
+                return _place_leaf_subtree(
+                    link_target, _get_identical_leaf_subtree(link_source, s)
+                )
             return link_target
         else:
             return PathsOf(t_type)
 
     return forward
+
+
+def link[
+    S, T
+](s_type: type[S], t_type: type[T], s: PathsOf[S], t: PathsOf[T]) -> Tracer[S, T]:
+    return Tracer(
+        forward=_forward_from_link(t_type, s, t),
+        backward=_forward_from_link(s_type, t, s),
+    )
 
 
 def disjunction[
@@ -41,15 +111,6 @@ def disjunction[
         return s
 
     return Tracer(forward=forward, backward=backward)
-
-
-def link[
-    S, T
-](s_type: type[S], t_type: type[T], s: PathsOf[S], t: PathsOf[T]) -> Tracer[S, T]:
-    return Tracer(
-        forward=_forward_from_link(t_type, s, t),
-        backward=_forward_from_link(s_type, t, s),
-    )
 
 
 @dataclass(frozen=True, kw_only=True)
