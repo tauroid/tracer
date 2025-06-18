@@ -40,21 +40,21 @@ c_pointer = PathsOf(Flat).eg({"c": PathsOf(str)})
 d_pointer = PathsOf(Flat).eg({"d": PathsOf(str)})
 
 a_start = PathsOf(Collection[Flat]).eg({a_pointer: a_pointer})
-a_end = PathsOf(A).around(["a", PathsOf(str), "key"], PathsOf(str))
+a_end = PathsOf(A).eg(["a", PathsOf(str), "key"], PathsOf(str))
 
 b_start = PathsOf(Collection[Flat]).eg({b_pointer: b_pointer})
-b_end = PathsOf(A).around(
+b_end = PathsOf(A).eg(
     ["a", PathsOf(str), "value", "b", PathsOf(str), "key"], PathsOf(str)
 )
 
 c_start = PathsOf(Collection[Flat]).eg({c_pointer: c_pointer})
-c_end = PathsOf(A).around(
+c_end = PathsOf(A).eg(
     ["a", PathsOf(str), "value", "b", PathsOf(str), "value", "c", PathsOf(str), "key"],
     PathsOf(str),
 )
 
 d_start = PathsOf(Collection[Flat]).eg({d_pointer: d_pointer})
-d_end = PathsOf(A).around(
+d_end = PathsOf(A).eg(
     [
         "a",
         PathsOf(str),

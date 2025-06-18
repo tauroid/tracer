@@ -24,7 +24,7 @@ class PathsOf[T](Mapping[PathKey, PathValue]):
 
     """FIXME Validation of `paths` (and other fields) based on `prototype`"""
 
-    from ._construction import eg, around
+    from ._construction import eg
     from ._serialisation import (
         as_indent_tree as _as_indent_tree,
         as_key_str as _as_key_str,
