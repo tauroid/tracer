@@ -16,6 +16,7 @@ from typing import (
 from ..cache import cache
 from ..type_manipulation import annotation_type, instance_union_member
 
+from .hole import Hole
 from .mapping import MappingItem
 
 if TYPE_CHECKING:
@@ -108,7 +109,7 @@ def paths[T](self: PathsOf[T]) -> Mapping[PathKey, PathsOf[Any]]:
         match get_args(self.type):
             case collection_type,:
                 return {
-                    item_paths: item_paths
+                    Hole(): item_paths
                     for item_paths in map(
                         lambda item: PathsOf(collection_type, item),
                         collection_instance,
@@ -116,7 +117,7 @@ def paths[T](self: PathsOf[T]) -> Mapping[PathKey, PathsOf[Any]]:
                 }
             case ():
                 return {
-                    item_paths: item_paths
+                    Hole(): item_paths
                     for item_paths in map(PathsOf, collection_instance)
                 }
             case args:

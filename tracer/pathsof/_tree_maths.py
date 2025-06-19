@@ -3,13 +3,13 @@ from typing import TYPE_CHECKING, Any
 
 from frozendict import frozendict
 
+from .hole import Hole
+
 if TYPE_CHECKING:
     from . import PathsOf
 
 
-def covers[
-    T
-](
+def covers[T](
     self: PathsOf[T], other: PathsOf[T], *, all_the_way_to_the_leaves: bool = False
 ) -> bool:
     """
@@ -20,9 +20,6 @@ def covers[
 
     FIXME good report
     """
-    # Importing properly seems to have inevitable loop
-    from . import PathsOf
-
     if not all_the_way_to_the_leaves and not self.paths:
         return True
 
@@ -32,27 +29,13 @@ def covers[
         ):
             continue
 
-        # Could be inexact match - currently only doing PathsOf covers
-        # PathsOf / normal (not normal covers PathsOf)
-
-        covering = False
         for self_key, self_paths in self.items():
-            if not isinstance(self_key, PathsOf):
-                continue
-
-            paths_of_self_key: PathsOf[Any] = self_key
-            paths_of_key: PathsOf[Any] = (
-                key if isinstance(key, PathsOf) else PathsOf(key)
-            )
-
-            if paths_of_self_key.covers(
-                paths_of_key, all_the_way_to_the_leaves=all_the_way_to_the_leaves
-            ) and self_paths.covers(
-                paths, all_the_way_to_the_leaves=all_the_way_to_the_leaves
-            ):
-                covering = True
-
-        if not covering:
+            if isinstance(self_key, Hole):
+                if self_paths.covers(
+                    paths, all_the_way_to_the_leaves=all_the_way_to_the_leaves
+                ):
+                    break
+        else:
             return False
 
     return True
@@ -62,9 +45,9 @@ def extends[T](self: PathsOf[T], other: PathsOf[T]) -> bool:
     return self.covers(other, all_the_way_to_the_leaves=True)
 
 
-def _remove_lowest_level[
-    T
-](self: PathsOf[T], depth: int = 0) -> tuple[PathsOf[T], int] | None:
+def _remove_lowest_level[T](
+    self: PathsOf[T], depth: int = 0
+) -> tuple[PathsOf[T], int] | None:
     from . import PathsOf
 
     if not self.paths:

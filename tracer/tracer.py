@@ -8,13 +8,14 @@ from frozendict import frozendict
 
 from .cache import cache
 from .pathsof import PathsOf
+from .pathsof.hole import Hole
 
 logger = logging.getLogger()
 
 
-def _get_identical_leaf_subtree[
-    T
-](possibilities: PathsOf[T], selection: PathsOf[T]) -> PathsOf[Any]:
+def _get_identical_leaf_subtree[T](
+    possibilities: PathsOf[T], selection: PathsOf[T]
+) -> PathsOf[Any] | None:
     # `not selection` means the selection was above the `possibilities` leaves.
     # In this case we don't want a subtree (there being a subtree in another
     # branch could be meaningful, but I'm choosing to complain rather than
@@ -22,11 +23,34 @@ def _get_identical_leaf_subtree[
     if not possibilities or not selection:
         return selection
 
-    first, *rest = (
-        _get_identical_leaf_subtree(possibilities[key], selection[key])
-        # FIXME wildcards
-        for key in possibilities
+    subtrees = (
+        _get_identical_leaf_subtree(possibilities[possibilities_key], selection_subtree)
+        for possibilities_key in possibilities
+        # possibilities just has to be covered. Unfortunately
+        # wildcards make it so multiple selection subtrees can
+        # match a possibilities subtree but only one of them
+        # needs to cover it. So some selection subtrees might
+        # have partial coverage
+        for selection_subtree in (
+            *(
+                (selection[possibilities_key],)
+                if possibilities_key in selection
+                else ()
+            ),
+            *(
+                subtree
+                for selection_key, subtree in selection.items()
+                if isinstance(selection_key, Hole)
+            ),
+        )
     )
+
+    subtrees = tuple(subtree for subtree in subtrees if subtree is not None)
+
+    if not subtrees:
+        return None
+
+    first, *rest = subtrees
 
     for subtree in rest:
         if subtree != first:
@@ -35,9 +59,9 @@ def _get_identical_leaf_subtree[
     return first
 
 
-def _place_leaf_subtree[
-    T
-](paths_of_target: PathsOf[T], subtree: PathsOf[Any]) -> PathsOf[T]:
+def _place_leaf_subtree[T](
+    paths_of_target: PathsOf[T], subtree: PathsOf[Any]
+) -> PathsOf[T]:
     """FIXME typecheckinggg"""
     if not paths_of_target:
         return subtree
@@ -54,9 +78,7 @@ def _place_leaf_subtree[
     )
 
 
-def _forward_from_link[
-    S, T
-](
+def _forward_from_link[S, T](
     t_type: type[T], link_source: PathsOf[S], link_target: PathsOf[T], copy: bool = True
 ) -> Callable[[PathsOf[S]], PathsOf[T]]:
     """
@@ -75,9 +97,12 @@ def _forward_from_link[
     def forward(s: PathsOf[S]) -> PathsOf[T]:
         if s.covers(link_source):
             if copy:
-                return _place_leaf_subtree(
-                    link_target, _get_identical_leaf_subtree(link_source, s)
-                )
+                subtree = _get_identical_leaf_subtree(link_source, s)
+                # Due to wildcard weirdness and recursion the return type
+                # has a possibility of None, but due to `s` covering
+                # `link_source` we should get a subtree out
+                assert subtree is not None
+                return _place_leaf_subtree(link_target, subtree)
             return link_target
         else:
             return PathsOf(t_type)
@@ -85,18 +110,18 @@ def _forward_from_link[
     return forward
 
 
-def link[
-    S, T
-](s_type: type[S], t_type: type[T], s: PathsOf[S], t: PathsOf[T]) -> Tracer[S, T]:
+def link[S, T](
+    s_type: type[S], t_type: type[T], s: PathsOf[S], t: PathsOf[T]
+) -> Tracer[S, T]:
     return Tracer(
         forward=_forward_from_link(t_type, s, t),
         backward=_forward_from_link(s_type, t, s),
     )
 
 
-def disjunction[
-    S, T
-](s_type: type[S], t_type: type[T], members: Collection[Tracer[S, T]]) -> Tracer[S, T]:
+def disjunction[S, T](
+    s_type: type[S], t_type: type[T], members: Collection[Tracer[S, T]]
+) -> Tracer[S, T]:
 
     def forward(s: PathsOf[S]) -> PathsOf[T]:
         t = PathsOf(t_type)

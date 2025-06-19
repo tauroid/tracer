@@ -1,10 +1,13 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Mapping, get_origin
 
+
 from ..cache import cache
 
 if TYPE_CHECKING:
     from . import PathsOf
+
+from .hole import Hole
 
 
 @property
@@ -14,9 +17,6 @@ def as_key_str[T](self: PathsOf[T]) -> str:
 
 
 def as_indent_tree[T](self: PathsOf[T], level: int = 0) -> str:
-    # Importing properly seems to have inevitable loop
-    from . import PathsOf
-
     s = "\n"
     if self.paths:
         # origin = get_origin(self.type) or self.type
@@ -29,8 +29,8 @@ def as_indent_tree[T](self: PathsOf[T], level: int = 0) -> str:
             #         key_str = repr(key)
             #     key_str += " =>"
             #     paths = paths.get("value", PathsOf(Any, None))
-            if isinstance(key, PathsOf):
-                key_str = key._as_key_str
+            if isinstance(key, Hole):
+                key_str = "*"
             else:
                 key_str = str(key)
             s += ("  " * level) + key_str

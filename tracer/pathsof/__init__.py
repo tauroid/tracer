@@ -24,24 +24,13 @@ class PathsOf[T](Mapping[PathKey, PathValue]):
 
     """FIXME Validation of `paths` (and other fields) based on `prototype`"""
 
-    from ._construction import eg
-    from ._serialisation import (
-        as_indent_tree as _as_indent_tree,
-        as_key_str as _as_key_str,
-    )
+    def __eq__(self, other: Any):
+        if not isinstance(other, PathsOf) or self.type != other.type:
+            return False
 
-    from ._normalised_properties import type_ as type, instance as instance
-    from ._type_checking import type_at_key as _type_at_key, union
-    from ._disassembly import paths
-    from ._assembly import assembled
-
-    from ._tree_maths import (
-        extends,
-        covers,
-        merge,
-        remove_lowest_level,
-        remove_lowest_level_or_none,
-    )
+        return (
+            self.paths == other.paths and self.sequence_length == other.sequence_length
+        )
 
     @cache
     def __str__(self) -> str:
@@ -73,3 +62,22 @@ class PathsOf[T](Mapping[PathKey, PathValue]):
 
     def __len__(self) -> int:
         return len(self.paths)
+
+    from ._construction import eg
+    from ._serialisation import (
+        as_indent_tree as _as_indent_tree,
+        as_key_str as _as_key_str,
+    )
+
+    from ._normalised_properties import type_ as type, instance as instance
+    from ._type_checking import type_at_key as _type_at_key, union
+    from ._disassembly import paths
+    from ._assembly import assembled
+
+    from ._tree_maths import (
+        extends,
+        covers,
+        merge,
+        remove_lowest_level,
+        remove_lowest_level_or_none,
+    )

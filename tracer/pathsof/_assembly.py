@@ -10,7 +10,6 @@ from typing import (
 )
 
 from ..cache import cache
-from ..comprehension_idioms import assert_isinstance
 from ..type_manipulation import annotation_type
 
 from .hole import Hole
@@ -50,8 +49,7 @@ def assembled[T](self: PathsOf[T]) -> T:
                 paths["key"].assembled if "key" in paths else Hole(): (
                     paths["value"].assembled if "value" in paths else Hole()
                 )
-                for key, paths in self.items()
-                if not assert_isinstance(key, PathsOf, False)
+                for paths in self.values()
             }
         )
 

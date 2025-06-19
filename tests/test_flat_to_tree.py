@@ -2,6 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Collection, Mapping
 
+from tracer.pathsof.hole import Hole
 from tracer.tracer import disjunction, link
 from tracer.pathsof import PathsOf
 
@@ -39,31 +40,29 @@ b_pointer = PathsOf(Flat).eg({"b": PathsOf(str)})
 c_pointer = PathsOf(Flat).eg({"c": PathsOf(str)})
 d_pointer = PathsOf(Flat).eg({"d": PathsOf(str)})
 
-a_start = PathsOf(Collection[Flat]).eg({a_pointer: a_pointer})
-a_end = PathsOf(A).eg(["a", PathsOf(str), "key"], PathsOf(str))
+a_start = PathsOf(Collection[Flat]).eg({Hole(): a_pointer})
+a_end = PathsOf(A).eg(["a", Hole(), "key"], PathsOf(str))
 
-b_start = PathsOf(Collection[Flat]).eg({b_pointer: b_pointer})
-b_end = PathsOf(A).eg(
-    ["a", PathsOf(str), "value", "b", PathsOf(str), "key"], PathsOf(str)
-)
+b_start = PathsOf(Collection[Flat]).eg({Hole(): b_pointer})
+b_end = PathsOf(A).eg(["a", Hole(), "value", "b", Hole(), "key"], PathsOf(str))
 
-c_start = PathsOf(Collection[Flat]).eg({c_pointer: c_pointer})
+c_start = PathsOf(Collection[Flat]).eg({Hole(): c_pointer})
 c_end = PathsOf(A).eg(
-    ["a", PathsOf(str), "value", "b", PathsOf(str), "value", "c", PathsOf(str), "key"],
+    ["a", Hole(), "value", "b", Hole(), "value", "c", Hole(), "key"],
     PathsOf(str),
 )
 
-d_start = PathsOf(Collection[Flat]).eg({d_pointer: d_pointer})
+d_start = PathsOf(Collection[Flat]).eg({Hole(): d_pointer})
 d_end = PathsOf(A).eg(
     [
         "a",
-        PathsOf(str),
+        Hole(),
         "value",
         "b",
-        PathsOf(str),
+        Hole(),
         "value",
         "c",
-        PathsOf(str),
+        Hole(),
         "value",
         "d",
     ],
@@ -81,8 +80,8 @@ flat_to_tree = disjunction(
     ),
 )
 
-a_value_start = PathsOf(Collection[Flat]).eg([PathsOf(Flat), "a"], PathsOf("1"))
-a_value_end = PathsOf(A).eg(["a", PathsOf(str), "key"], PathsOf("1"))
+a_value_start = PathsOf(Collection[Flat]).eg([Hole(), "a"], PathsOf("1"))
+a_value_end = PathsOf(A).eg(["a", Hole(), "key"], PathsOf("1"))
 
 
 def test_a_forward():
