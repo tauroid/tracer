@@ -165,3 +165,28 @@ def test_a_wildcard_d_fixed():
     )
     assert flat_to_tree.trace(start) == end
     assert start == flat_to_tree.reverse.trace(end)
+
+
+flat_list = (
+    Flat("x", "x", "x", "x"),
+    Flat("y", "y", "y", "y"),
+    Flat("y", "z", "z", "z"),
+    Flat("y", "z", "w", "w"),
+    Flat("y", "z", "w", "a"),
+)
+
+
+def test_flat_to_tree():
+    assert flat_to_tree.trace(PathsOf(Collection[Flat], flat_list)) == PathsOf(
+        A(
+            {
+                "x": B({"x": C({"x": D(("x",))})}),
+                "y": B(
+                    {
+                        "y": C({"y": D(("y",))}),
+                        "z": C({"z": D(("z",)), "w": D(("w", "a"))}),
+                    }
+                ),
+            }
+        )
+    )
