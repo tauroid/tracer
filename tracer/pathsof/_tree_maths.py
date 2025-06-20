@@ -1,12 +1,12 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from frozendict import frozendict
 
-from .hole import Hole
-
 if TYPE_CHECKING:
     from . import PathsOf
+
+from .wildcard import is_wildcard
 
 
 def covers[T](
@@ -30,7 +30,7 @@ def covers[T](
             continue
 
         for self_key, self_paths in self.items():
-            if isinstance(self_key, Hole):
+            if is_wildcard(self_key):
                 if self_paths.covers(
                     paths, all_the_way_to_the_leaves=all_the_way_to_the_leaves
                 ):

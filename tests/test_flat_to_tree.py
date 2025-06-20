@@ -2,9 +2,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Collection, Mapping
 
-from tracer.pathsof.hole import Hole
 from tracer.tracer import disjunction, link
 from tracer.pathsof import PathsOf
+from tracer.pathsof.wildcard import _
 
 
 @dataclass(frozen=True)
@@ -40,32 +40,21 @@ b_pointer = PathsOf(Flat).eg({"b": PathsOf(str)})
 c_pointer = PathsOf(Flat).eg({"c": PathsOf(str)})
 d_pointer = PathsOf(Flat).eg({"d": PathsOf(str)})
 
-a_start = PathsOf(Collection[Flat]).eg({Hole(): a_pointer})
-a_end = PathsOf(A).eg(["a", Hole(), "key"], PathsOf(str))
+a_start = PathsOf(Collection[Flat]).eg({_: a_pointer})
+a_end = PathsOf(A).eg(["a", _, "key"], PathsOf(str))
 
-b_start = PathsOf(Collection[Flat]).eg({Hole(): b_pointer})
-b_end = PathsOf(A).eg(["a", Hole(), "value", "b", Hole(), "key"], PathsOf(str))
+b_start = PathsOf(Collection[Flat]).eg({_: b_pointer})
+b_end = PathsOf(A).eg(["a", _, "value", "b", _, "key"], PathsOf(str))
 
-c_start = PathsOf(Collection[Flat]).eg({Hole(): c_pointer})
+c_start = PathsOf(Collection[Flat]).eg({_: c_pointer})
 c_end = PathsOf(A).eg(
-    ["a", Hole(), "value", "b", Hole(), "value", "c", Hole(), "key"],
+    ["a", _, "value", "b", _, "value", "c", _, "key"],
     PathsOf(str),
 )
 
-d_start = PathsOf(Collection[Flat]).eg({Hole(): d_pointer})
+d_start = PathsOf(Collection[Flat]).eg({_: d_pointer})
 d_end = PathsOf(A).eg(
-    [
-        "a",
-        Hole(),
-        "value",
-        "b",
-        Hole(),
-        "value",
-        "c",
-        Hole(),
-        "value",
-        "d",
-    ],
+    ["a", _, "value", "b", _, "value", "c", _, "value", "d"],
     PathsOf(str),
 )
 
@@ -79,9 +68,6 @@ flat_to_tree = disjunction(
         link(Collection[Flat], A, d_start, d_end),
     ),
 )
-
-a_value_start = PathsOf(Collection[Flat]).eg([Hole(), "a"], PathsOf("1"))
-a_value_end = PathsOf(A).eg(["a", Hole(), "key"], PathsOf("1"))
 
 
 def test_a_forward():
@@ -114,3 +100,68 @@ def test_d_forward():
 
 def test_d_backward():
     assert flat_to_tree.reverse.trace(d_end) == d_start
+
+
+a_value_start = PathsOf(Collection[Flat]).eg([_, "a"], PathsOf("1"))
+a_value_end = PathsOf(A).eg(["a", _, "key"], PathsOf("1"))
+b_value_start = PathsOf(Collection[Flat]).eg([_, "b"], PathsOf("2"))
+b_value_end = PathsOf(A).eg(["a", _, "value", "b", _, "key"], PathsOf("2"))
+c_value_start = PathsOf(Collection[Flat]).eg([_, "c"], PathsOf("3"))
+c_value_end = PathsOf(A).eg(
+    ["a", _, "value", "b", _, "value", "c", _, "key"], PathsOf("3")
+)
+d_value_start = PathsOf(Collection[Flat]).eg([_, "d"], PathsOf("4"))
+d_value_end = PathsOf(A).eg(
+    ["a", _, "value", "b", _, "value", "c", _, "value", "d"], PathsOf("4")
+)
+
+
+def test_a_value_forward():
+    assert flat_to_tree.trace(a_value_start) == a_value_end
+
+
+def test_a_value_backward():
+    assert flat_to_tree.reverse.trace(a_value_end) == a_value_start
+
+
+def test_b_value_forward():
+    assert flat_to_tree.trace(b_value_start) == b_value_end
+
+
+def test_b_value_backward():
+    assert flat_to_tree.reverse.trace(b_value_end) == b_value_start
+
+
+def test_c_value_forward():
+    assert flat_to_tree.trace(c_value_start) == c_value_end
+
+
+def test_c_value_backward():
+    assert flat_to_tree.reverse.trace(c_value_end) == c_value_start
+
+
+def test_d_value_forward():
+    assert flat_to_tree.trace(d_value_start) == d_value_end
+
+
+def test_d_value_backward():
+    assert flat_to_tree.reverse.trace(d_value_end) == d_value_start
+
+
+def test_a_wildcard_d_fixed():
+    start = (
+        PathsOf(Collection[Flat])
+        .eg([_, "a"], PathsOf(str))
+        .merge(PathsOf(Collection[Flat]).eg([_, "d"], PathsOf("4")))
+    )
+    end = (
+        PathsOf(A)
+        .eg(["a", _, "key"], PathsOf(str))
+        .merge(
+            PathsOf(A).eg(
+                ["a", _, "value", "b", _, "value", "c", _, "value", "d"], PathsOf("4")
+            )
+        )
+    )
+    assert flat_to_tree.trace(start) == end
+    assert start == flat_to_tree.reverse.trace(end)

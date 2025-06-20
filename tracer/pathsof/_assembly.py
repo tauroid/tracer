@@ -1,5 +1,8 @@
 from __future__ import annotations
+import builtins
 from dataclasses import fields, is_dataclass
+import datetime
+import types
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -24,8 +27,17 @@ def assembled[T](self: PathsOf[T]) -> T:
     # Importing properly seems to have inevitable loop
     from . import PathsOf
 
-    if self.instance is not None or self.type is type(None):
-        return cast(T, self.instance)
+    match self.type:
+        case datetime.datetime | builtins.str | builtins.int | types.NoneType:
+            match tuple(self.keys()):
+                case (key,):
+                    return cast(T, key)
+                case ():
+                    return cast(T, Hole())
+                case _:
+                    raise Exception("Can't assemble multiple sum brances")
+        case _:
+            pass
 
     if is_dataclass(self.type):
         return self.type(

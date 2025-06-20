@@ -1,6 +1,7 @@
 from __future__ import annotations
 from dataclasses import fields, is_dataclass, replace
 from datetime import datetime
+from types import EllipsisType
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -16,8 +17,8 @@ from typing import (
 from ..cache import cache
 from ..type_manipulation import annotation_type, instance_union_member
 
-from .hole import Hole
 from .mapping import MappingItem
+from .wildcard import Wildcard, normalise_wildcards
 
 if TYPE_CHECKING:
     from . import PathsOf
@@ -37,7 +38,7 @@ def paths[T](self: PathsOf[T]) -> Mapping[PathKey, PathsOf[Any]]:
                 "Can't supply both `explicit_paths` and concrete data instance"
             )
         # TODO maybe more stuff explicit_paths conflicts with
-        return self.explicit_paths
+        return normalise_wildcards(self.explicit_paths)
 
     if self.instance is None:
         return {}
@@ -47,8 +48,10 @@ def paths[T](self: PathsOf[T]) -> Mapping[PathKey, PathsOf[Any]]:
         return {union_member: replace(self, prototype=union_member)}
 
     match self.instance:
-        case datetime() | str() | int() | None:
+        case EllipsisType():
             return {}
+        case datetime() | str() | int() | None:
+            return {self.instance: PathsOf(EllipsisType)}
         case _:
             pass
 
@@ -109,7 +112,7 @@ def paths[T](self: PathsOf[T]) -> Mapping[PathKey, PathsOf[Any]]:
         match get_args(self.type):
             case collection_type,:
                 return {
-                    Hole(): item_paths
+                    Wildcard(item_paths): item_paths
                     for item_paths in map(
                         lambda item: PathsOf(collection_type, item),
                         collection_instance,
@@ -117,7 +120,7 @@ def paths[T](self: PathsOf[T]) -> Mapping[PathKey, PathsOf[Any]]:
                 }
             case ():
                 return {
-                    Hole(): item_paths
+                    Wildcard(item_paths): item_paths
                     for item_paths in map(PathsOf, collection_instance)
                 }
             case args:

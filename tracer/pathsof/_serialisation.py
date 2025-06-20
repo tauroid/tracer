@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Any, Mapping, get_origin
+from typing import TYPE_CHECKING
 
 
 from ..cache import cache
@@ -7,7 +7,7 @@ from ..cache import cache
 if TYPE_CHECKING:
     from . import PathsOf
 
-from .hole import Hole
+from .wildcard import is_wildcard
 
 
 @property
@@ -29,7 +29,7 @@ def as_indent_tree[T](self: PathsOf[T], level: int = 0) -> str:
             #         key_str = repr(key)
             #     key_str += " =>"
             #     paths = paths.get("value", PathsOf(Any, None))
-            if isinstance(key, Hole):
+            if is_wildcard(key):
                 key_str = "*"
             else:
                 key_str = str(key)

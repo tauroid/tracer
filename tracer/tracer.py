@@ -8,7 +8,7 @@ from frozendict import frozendict
 
 from .cache import cache
 from .pathsof import PathsOf
-from .pathsof.hole import Hole
+from .pathsof.wildcard import is_wildcard
 
 logger = logging.getLogger()
 
@@ -40,7 +40,7 @@ def _get_identical_leaf_subtree[T](
             *(
                 subtree
                 for selection_key, subtree in selection.items()
-                if isinstance(selection_key, Hole)
+                if is_wildcard(selection_key)
             ),
         )
     )
