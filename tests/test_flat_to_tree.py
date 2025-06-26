@@ -2,6 +2,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Collection, Mapping
 
+from frozendict import frozendict
+
 from tracer.tracer import disjunction, link
 from tracer.pathsof import PathsOf
 from tracer.pathsof.wildcard import _
@@ -54,7 +56,7 @@ c_end = PathsOf(A).eg(
 
 d_start = PathsOf(Collection[Flat]).eg({_: d_pointer})
 d_end = PathsOf(A).eg(
-    ["a", _, "value", "b", _, "value", "c", _, "value", "d"],
+    ["a", _, "value", "b", _, "value", "c", _, "value", "d", _],
     PathsOf(str),
 )
 
@@ -110,7 +112,7 @@ c_value_end = PathsOf(A).eg(
 )
 d_value_start = PathsOf(Collection[Flat]).eg([_, "d"], PathsOf("4"))
 d_value_end = PathsOf(A).eg(
-    ["a", _, "value", "b", _, "value", "c", _, "value", "d"], PathsOf("4")
+    ["a", _, "value", "b", _, "value", "c", _, "value", "d", _], PathsOf("4")
 )
 
 
@@ -157,7 +159,8 @@ def test_a_wildcard_d_fixed():
         .eg(["a", _, "key"], PathsOf(str))
         .merge(
             PathsOf(A).eg(
-                ["a", _, "value", "b", _, "value", "c", _, "value", "d"], PathsOf("4")
+                ["a", _, "value", "b", _, "value", "c", _, "value", "d", _],
+                PathsOf("4"),
             )
         )
     )
@@ -173,18 +176,24 @@ flat_list = (
     Flat("y", "z", "w", "a"),
 )
 
+tree = A(
+    {
+        "x": B({"x": C({"x": D(("x",))})}),
+        "y": B(
+            {
+                "y": C({"y": D(("y",))}),
+                "z": C({"z": D(("z",)), "w": D(("w", "a"))}),
+            }
+        ),
+    }
+)
+
 
 def test_flat_to_tree():
-    assert flat_to_tree.trace(PathsOf(Collection[Flat], flat_list)) == PathsOf(
-        A(
-            {
-                "x": B({"x": C({"x": D(("x",))})}),
-                "y": B(
-                    {
-                        "y": C({"y": D(("y",))}),
-                        "z": C({"z": D(("z",)), "w": D(("w", "a"))}),
-                    }
-                ),
-            }
-        )
-    )
+    assert flat_to_tree(flat_list) == tree
+    # FIXME this would work if dict was hashable. I think now is
+    #       the time to "hide" the raw PathsOf constructor and
+    #       remove the prototype and instance fields, just storing
+    #       explicit paths. Then it doesn't matter if the
+    #       prototype value is mutable
+    assert flat_to_tree.reverse(tree) == flat_list

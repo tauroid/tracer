@@ -113,27 +113,43 @@ def merge[T](
     assert self.type == other.type
     assert self.sequence_length == other.sequence_length
 
-    new_explicit_paths = dict(self)
-
     def merge_key(key: PathKey, paths: PathValue):
         if key in new_explicit_paths:
-            new_explicit_paths[key] = new_explicit_paths[key].merge(paths)
+            new_explicit_paths[key] = new_explicit_paths[key].merge(
+                paths, merge_wildcards=merge_wildcards
+            )
         else:
             new_explicit_paths[key] = paths
 
     if merge_wildcards:
-        wc_subtree = None
+        new_explicit_paths = {
+            key: paths for key, paths in self.items() if not is_wildcard(key)
+        }
+        match [paths for key, paths in self.items() if is_wildcard(key)]:
+            case (wc_subtree,):
+                pass
+            case ():
+                wc_subtree = None
+            case _:
+                raise Exception(
+                    "For `merge_wildcards=True`, the source paths are"
+                    " currently expected to only have one wildcard:\n"
+                    f"{self}"
+                )
+
         for key, paths in other.items():
             if is_wildcard(key):
-                if wc_subtree is None:
-                    wc_subtree = paths
+                if wc_subtree is not None:
+                    wc_subtree = wc_subtree.merge(paths, merge_wildcards=True)
                 else:
-                    wc_subtree = wc_subtree.merge(paths)
+                    wc_subtree = paths
             else:
                 merge_key(key, paths)
+
         if wc_subtree is not None:
             merge_key(Wildcard(wc_subtree), wc_subtree)
     else:
+        new_explicit_paths = dict(self)
         for key, paths in other.items():
             merge_key(key, paths)
 

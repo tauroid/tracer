@@ -1,5 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass, replace
+from itertools import product
 import logging
 from typing import Any, Callable, Collection, Iterator
 
@@ -118,23 +119,26 @@ def link[S, T](s: PathsOf[S], t: PathsOf[T]) -> Tracer[S, T]:
 
 
 def _single_wildcard_subtrees[T](paths: PathsOf[T]) -> Iterator[PathsOf[T]]:
-    if not any(map(is_wildcard, paths)):
-        yield paths
+    if any(map(is_wildcard, paths)):
+        # Basically if there are any wildcards, we'll also proceed
+        # through the non-wildcard branches one at a time.
+        #
+        # An argument could be made for doing the non-wildcards all
+        # at once, or in contiguous blocks, but this is it for now
+        #
+        # So in presence of wildcards you can't have a mapping
+        # straddling multiple branches (e.g. list elements) (but
+        # without wildcards you can)
 
-    # Basically if there are any wildcards, we'll also proceed
-    # through the non-wildcard branches one at a time.
-    #
-    # An argument could be made for doing the non-wildcards all
-    # at once, or in contiguous blocks, but this is it for now
-    #
-    # So in presence of wildcards you can't have a mapping
-    # straddling multiple branches (e.g. list elements) (but
-    # without wildcards you can)
-
-    for key, subpaths in paths.items():
-        for subtree in _single_wildcard_subtrees(subpaths):
+        for key, subpaths in paths.items():
+            for subtree in _single_wildcard_subtrees(subpaths):
+                yield PathsOf(paths.type, sequence_length=paths.sequence_length).eg(
+                    {key: subtree}
+                )
+    else:
+        for subtrees in product(*map(_single_wildcard_subtrees, paths.values())):
             yield PathsOf(paths.type, sequence_length=paths.sequence_length).eg(
-                {key: subtree}
+                {key: subtree for key, subtree in zip(paths.keys(), subtrees)}
             )
 
 
@@ -162,7 +166,7 @@ def _forward_through_multiple[S, T](
         first, *rest = forwards
         result = first(subtree)
         for forward in rest:
-            result = result.merge(forward(paths), merge_wildcards=True)
+            result = result.merge(forward(subtree), merge_wildcards=True)
         return result
 
     subtrees_iter = _single_wildcard_subtrees(paths)

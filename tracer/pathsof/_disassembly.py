@@ -92,20 +92,28 @@ def paths[T](self: PathsOf[T]) -> Mapping[PathKey, PathsOf[Any]]:
                     f" type args to a `Mapping` subclass but got {args}"
                 )
 
-    if issubclass(type_origin, Sequence):
-        sequence_instance = cast(Sequence[Any], self.instance)
-        match get_args(self.type):
-            case sequence_type,:
-                return {
-                    n: PathsOf(sequence_type, value)
-                    for n, value in enumerate(sequence_instance)
-                }
-            case ():
-                return {n: PathsOf(value) for n, value in enumerate(sequence_instance)}
-            case args:
-                raise Exception(
-                    f"Expected 1 type arg to a `Sequence` subclass but got {args}"
-                )
+    # FIXME having numbers on sequences doesn't work with wildcardy
+    #       `link`s. But whose problem is that, links not showing
+    #       whether they think of stuff as wildcards, or are numbers
+    #       just not a good idea?
+    #
+    #       Probably the first one is the problem, but forcing
+    #       tracers to show their input specs sounds like a pain
+    #
+    # if issubclass(type_origin, Sequence):
+    #     sequence_instance = cast(Sequence[Any], self.instance)
+    #     match get_args(self.type):
+    #         case sequence_type,:
+    #             return {
+    #                 n: PathsOf(sequence_type, value)
+    #                 for n, value in enumerate(sequence_instance)
+    #             }
+    #         case ():
+    #             return {n: PathsOf(value) for n, value in enumerate(sequence_instance)}
+    #         case args:
+    #             raise Exception(
+    #                 f"Expected 1 type arg to a `Sequence` subclass but got {args}"
+    #             )
 
     if issubclass(type_origin, Collection):
         collection_instance = cast(Collection[Any], self.instance)
