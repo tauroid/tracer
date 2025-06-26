@@ -3,10 +3,13 @@ from typing import TYPE_CHECKING
 
 from frozendict import frozendict
 
+
 if TYPE_CHECKING:
     from . import PathsOf
 
-from .wildcard import is_wildcard
+from .wildcard import Wildcard, is_wildcard
+
+from . import PathKey, PathValue
 
 
 def covers[T](
@@ -97,7 +100,9 @@ def remove_lowest_level[T](self: PathsOf[T]) -> PathsOf[T]:
     return removed
 
 
-def merge[T](self: PathsOf[T], other: PathsOf[T]) -> PathsOf[T]:
+def merge[T](
+    self: PathsOf[T], other: PathsOf[T], *, merge_wildcards: bool = False
+) -> PathsOf[T]:
     # Importing properly seems to have inevitable loop
     from . import PathsOf
 
@@ -109,11 +114,28 @@ def merge[T](self: PathsOf[T], other: PathsOf[T]) -> PathsOf[T]:
     assert self.sequence_length == other.sequence_length
 
     new_explicit_paths = dict(self)
-    for key, paths in other.items():
+
+    def merge_key(key: PathKey, paths: PathValue):
         if key in new_explicit_paths:
             new_explicit_paths[key] = new_explicit_paths[key].merge(paths)
         else:
             new_explicit_paths[key] = paths
+
+    if merge_wildcards:
+        wc_subtree = None
+        for key, paths in other.items():
+            if is_wildcard(key):
+                if wc_subtree is None:
+                    wc_subtree = paths
+                else:
+                    wc_subtree = wc_subtree.merge(paths)
+            else:
+                merge_key(key, paths)
+        if wc_subtree is not None:
+            merge_key(Wildcard(wc_subtree), wc_subtree)
+    else:
+        for key, paths in other.items():
+            merge_key(key, paths)
 
     return PathsOf(
         self.type,

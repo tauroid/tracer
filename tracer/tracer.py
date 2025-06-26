@@ -1,7 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass, replace
 import logging
-from typing import Any, Callable, Collection
+from typing import Any, Callable, Collection, Iterator
 
 from frozendict import frozendict
 
@@ -79,7 +79,7 @@ def _place_leaf_subtree[T](
 
 
 def _forward_from_link[S, T](
-    t_type: type[T], link_source: PathsOf[S], link_target: PathsOf[T], copy: bool = True
+    link_source: PathsOf[S], link_target: PathsOf[T], copy: bool = True
 ) -> Callable[[PathsOf[S]], PathsOf[T]]:
     """
     `copy` determines what to do about subpaths if there are any
@@ -105,35 +105,81 @@ def _forward_from_link[S, T](
                 return _place_leaf_subtree(link_target, subtree)
             return link_target
         else:
-            return PathsOf(t_type)
+            return PathsOf(link_target.type)
 
     return forward
 
 
-def link[S, T](
-    s_type: type[S], t_type: type[T], s: PathsOf[S], t: PathsOf[T]
-) -> Tracer[S, T]:
+def link[S, T](s: PathsOf[S], t: PathsOf[T]) -> Tracer[S, T]:
     return Tracer(
-        forward=_forward_from_link(t_type, s, t),
-        backward=_forward_from_link(s_type, t, s),
+        forward=_forward_from_link(s, t),
+        backward=_forward_from_link(t, s),
     )
 
 
-def disjunction[S, T](
-    s_type: type[S], t_type: type[T], members: Collection[Tracer[S, T]]
-) -> Tracer[S, T]:
+def _single_wildcard_subtrees[T](paths: PathsOf[T]) -> Iterator[PathsOf[T]]:
+    if not any(map(is_wildcard, paths)):
+        yield paths
+
+    # Basically if there are any wildcards, we'll also proceed
+    # through the non-wildcard branches one at a time.
+    #
+    # An argument could be made for doing the non-wildcards all
+    # at once, or in contiguous blocks, but this is it for now
+    #
+    # So in presence of wildcards you can't have a mapping
+    # straddling multiple branches (e.g. list elements) (but
+    # without wildcards you can)
+
+    for key, subpaths in paths.items():
+        for subtree in _single_wildcard_subtrees(subpaths):
+            yield PathsOf(paths.type, sequence_length=paths.sequence_length).eg(
+                {key: subtree}
+            )
+
+
+def _forward_through_multiple[S, T](
+    paths: PathsOf[S], forwards: Collection[Callable[[PathsOf[S]], PathsOf[T]]]
+) -> PathsOf[T]:
+    """
+    Opinionated way of putting a single `PathsOf` through multiple
+    tracing functions. Basically:
+    - For each single-wildcard subtree (where any node only has
+      max 1 wildcard child) of `paths`:
+      - Get every output tree from each of forwards
+      - Merge them, merging wildcards. This then produces another
+        single-wildcard tree.
+    - Merge the resulting single-wildcard trees, not merging
+      wildcards
+
+    This feels like the most "reversible" way to deal with
+    wildcards, but until I think about that more, those scare
+    quotes remain firmly installed. It is certainly not the only
+    way to deal with wildcards.
+    """
+
+    def single_subtree_forward(subtree: PathsOf[S]) -> PathsOf[T]:
+        first, *rest = forwards
+        result = first(subtree)
+        for forward in rest:
+            result = result.merge(forward(paths), merge_wildcards=True)
+        return result
+
+    subtrees_iter = _single_wildcard_subtrees(paths)
+    result = single_subtree_forward(next(subtrees_iter))
+    for subtree in subtrees_iter:
+        result = result.merge(single_subtree_forward(subtree))
+
+    return result
+
+
+def disjunction[S, T](members: Collection[Tracer[S, T]]) -> Tracer[S, T]:
 
     def forward(s: PathsOf[S]) -> PathsOf[T]:
-        t = PathsOf(t_type)
-        for member in members:
-            t = t.merge(member.forward(s))
-        return t
+        return _forward_through_multiple(s, tuple(m.forward for m in members))
 
     def backward(t: PathsOf[T]) -> PathsOf[S]:
-        s = PathsOf(s_type)
-        for member in members:
-            s = s.merge(member.backward(t))
-        return s
+        return _forward_through_multiple(t, tuple(m.backward for m in members))
 
     return Tracer(forward=forward, backward=backward)
 

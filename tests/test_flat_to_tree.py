@@ -59,13 +59,11 @@ d_end = PathsOf(A).eg(
 )
 
 flat_to_tree = disjunction(
-    Collection[Flat],
-    A,
     (
-        link(Collection[Flat], A, a_start, a_end),
-        link(Collection[Flat], A, b_start, b_end),
-        link(Collection[Flat], A, c_start, c_end),
-        link(Collection[Flat], A, d_start, d_end),
+        link(a_start, a_end),
+        link(b_start, b_end),
+        link(c_start, c_end),
+        link(d_start, d_end),
     ),
 )
 
