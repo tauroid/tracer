@@ -1,12 +1,11 @@
-from frozendict import deepfreeze, frozendict
+from frozendict import deepfreeze
 
 from tracer.pathsof import PathsOf
 from tracer.pathsof.hole import Hole
 
 
 def test_remove_lowest_level():
-    paths = PathsOf(
-        frozendict,
+    paths = PathsOf.a(
         deepfreeze({"a": {"a": {"a": {}, "b": {}}, "b": {"a": {"a": {}}}}}),
     )
 

@@ -36,11 +36,6 @@ def as_indent_tree[T](self: PathsOf[T], level: int = 0) -> str:
             s += ("  " * level) + key_str
             s += paths._as_indent_tree(level + 1)
     else:
-        if self.instance is None and self.type is not type(None):
-            # Just being vague as opposed to literally being `None`
-            leaf_str = "◌"
-        else:
-            leaf_str = str(self.instance)
+        s += ("  " * level) + "◌" + "\n"
 
-        s += ("  " * level) + leaf_str + "\n"
     return s

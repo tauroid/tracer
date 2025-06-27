@@ -1,91 +1,98 @@
 from __future__ import annotations
-from dataclasses import fields, is_dataclass, replace
+from dataclasses import fields, is_dataclass
 from datetime import datetime
 from types import EllipsisType
 from typing import (
-    TYPE_CHECKING,
     Any,
     Collection,
     Mapping,
-    Sequence,
+    # Sequence,
     cast,
     get_args,
     get_origin,
 )
 
+from frozendict import frozendict
 
-from ..cache import cache
+
 from ..type_manipulation import annotation_type, instance_union_member
 
+from ._type_checking import union
 from .mapping import MappingItem
-from .wildcard import Wildcard, normalise_wildcards
+from .wildcard import Wildcard
 
-if TYPE_CHECKING:
-    from . import PathsOf
-
-from . import PathKey
+from . import PathKey, PathValue
 
 
-@property
-@cache
-def paths[T](self: PathsOf[T]) -> Mapping[PathKey, PathsOf[Any]]:
+def paths_from_object[T](t: type[T], instance: T) -> frozendict[PathKey, PathValue]:
     # Importing properly seems to have inevitable loop
     from . import PathsOf
 
-    if self.explicit_paths is not None:
-        if self.instance is not None:
-            raise Exception(
-                "Can't supply both `explicit_paths` and concrete data instance"
-            )
-        # TODO maybe more stuff explicit_paths conflicts with
-        return normalise_wildcards(self.explicit_paths)
+    if t_union := union(t):
+        union_member = instance_union_member(instance, t_union)
+        return frozendict({union_member: PathsOf(union_member).specifically(instance)})
 
-    if self.instance is None:
-        return {}
-
-    if self.union:
-        union_member = instance_union_member(self.instance, self.union)
-        return {union_member: replace(self, prototype=union_member)}
-
-    match self.instance:
+    match instance:
         case EllipsisType():
-            return {}
+            return frozendict()
         case datetime() | str() | int() | None:
-            return {self.instance: PathsOf(EllipsisType)}
+            return frozendict({instance: PathsOf(EllipsisType)})
         case _:
             pass
 
-    if is_dataclass(self.instance):
-        return {
-            f.name: PathsOf(
-                annotation_type(f.type, ctx_class=self.type),
-                getattr(self.instance, f.name),
-            )
-            for f in fields(self.instance)
-        }
+    if is_dataclass(instance):
+        return frozendict(
+            {
+                f.name: PathsOf(
+                    annotation_type(f.type, ctx_class=t),
+                ).specifically(getattr(instance, f.name))
+                for f in fields(instance)
+            }
+        )
 
-    type_origin = get_origin(self.type) or self.type
+    type_origin = get_origin(t) or t
 
     if issubclass(type_origin, Mapping):
-        mapping_instance = cast(Mapping[Any, Any], self.instance)
-        match get_args(self.type):
+        mapping_instance = cast(Mapping[Any, Any], instance)
+        match get_args(t):
             case (key_type, value_type):
-                return {
-                    key: PathsOf(MappingItem[key_type, value_type]).eg(
-                        {
-                            "key": PathsOf(key_type, key),
-                            "value": PathsOf(value_type, value),
-                        }
-                    )
-                    for key, value in mapping_instance.items()
-                }
+                return frozendict(
+                    {
+                        Wildcard(item): item
+                        for key, value in mapping_instance.items()
+                        for item in (
+                            PathsOf(
+                                MappingItem[key_type, value_type],
+                                paths=frozendict(
+                                    {
+                                        "key": PathsOf(key_type).specifically(key),
+                                        "value": PathsOf(value_type).specifically(
+                                            value
+                                        ),
+                                    }
+                                ),
+                            ),
+                        )
+                    }
+                )
             case ():
-                return {
-                    key: PathsOf(MappingItem[Any, Any]).eg(
-                        {"key": PathsOf(key), "value": PathsOf(value)}
-                    )
-                    for key, value in mapping_instance.items()
-                }
+                return frozendict(
+                    {
+                        Wildcard(item): item
+                        for key, value in mapping_instance.items()
+                        for item in (
+                            PathsOf(
+                                MappingItem[Any, Any],
+                                paths=frozendict(
+                                    {
+                                        "key": PathsOf.a(key),
+                                        "value": PathsOf.a(value),
+                                    }
+                                ),
+                            ),
+                        )
+                    }
+                )
             case args:
                 raise Exception(
                     "Expected 0 or 2 (really, just 2 but `PathsOf(value)` is nice)"
@@ -116,26 +123,28 @@ def paths[T](self: PathsOf[T]) -> Mapping[PathKey, PathsOf[Any]]:
     #             )
 
     if issubclass(type_origin, Collection):
-        collection_instance = cast(Collection[Any], self.instance)
-        match get_args(self.type):
+        collection_instance = cast(Collection[Any], instance)
+        match get_args(t):
             case collection_type,:
-                return {
-                    Wildcard(item_paths): item_paths
-                    for item_paths in map(
-                        lambda item: PathsOf(collection_type, item),
-                        collection_instance,
-                    )
-                }
+                return frozendict(
+                    {
+                        Wildcard(item_paths): item_paths
+                        for item_paths in map(
+                            lambda item: PathsOf(collection_type).specifically(item),
+                            collection_instance,
+                        )
+                    }
+                )
             case ():
-                return {
-                    Wildcard(item_paths): item_paths
-                    for item_paths in map(PathsOf, collection_instance)
-                }
+                return frozendict(
+                    {
+                        Wildcard(item_paths): item_paths
+                        for item_paths in map(PathsOf.a, collection_instance)
+                    }
+                )
             case args:
                 raise Exception(
                     f"Expected 1 type arg to a `Collection` subclass but got {args}"
                 )
 
-    raise Exception(
-        f"Don't know how to make paths out of {self.instance}, type {self.type}."
-    )
+    raise Exception(f"Don't know how to make paths out of {instance}, type {t}.")

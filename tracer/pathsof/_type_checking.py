@@ -24,31 +24,31 @@ if TYPE_CHECKING:
 from . import PathKey
 
 
-@property
 @cache
-def union[T](self: PathsOf[T]) -> Collection[type[Any]] | None:
-    if get_origin(self.type) in [Union, UnionType]:
-        return get_args(self.type)
+def union[T](t: type[T]) -> Collection[type[Any]] | None:
+    if get_origin(t) in [Union, UnionType]:
+        return get_args(t)
     else:
         return None
 
 
 def type_at_key[T](self: PathsOf[T], key: PathKey) -> type[Any]:
-    if self.union:
+    if t_union := union(self.type):
         assert isinstance(key, type)
-        assert key in self.union
+        assert key in t_union
         return key
 
-    if is_dataclass(self.type):
+    origin = get_origin(self.type) or self.type
+
+    if is_dataclass(origin):
         assert isinstance(key, str)
         (key_type,) = (
             annotation_type(f.type, ctx_class=self.type)
-            for f in fields(self.type)
+            for f in fields(origin)
             if f.name == key
         )
-        return cast(type[Any], key_type)
+        return key_type
 
-    origin = get_origin(self.type) or self.type
     if issubclass(origin, Mapping):
         match get_args(self.type):
             case (key_type, value_type):

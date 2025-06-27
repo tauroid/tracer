@@ -14,26 +14,14 @@ type PathValue = PathsOf[Any]
 
 @dataclass(frozen=True, kw_only=True)
 class PathsOf[T](Mapping[PathKey, PathValue]):
-    prototype: type[T] | T = field(kw_only=False)
-    explicit_instance: T | None = field(kw_only=False, default=None)
-    explicit_paths: frozendict[PathKey, PathsOf[Any]] | None = field(default=None)
+    type: type[T] = field(kw_only=False)
+    paths: frozendict[PathKey, PathsOf[Any]] = frozendict()
     sequence_length: int | None = None
     """If `T` is a `Sequence` of some kind"""
 
     def __post_init__(self): ...
 
     """FIXME Validation of `paths` (and other fields) based on `prototype`"""
-
-    def __eq__(self, other: Any):
-        if (
-            not isinstance(other, PathsOf)
-            or self.type != cast(PathsOf[Any], other).type
-        ):
-            return False
-
-        return (
-            self.paths == other.paths and self.sequence_length == other.sequence_length
-        )
 
     @cache
     def __str__(self) -> str:
@@ -49,16 +37,14 @@ class PathsOf[T](Mapping[PathKey, PathValue]):
     def __len__(self) -> int:
         return len(self.paths)
 
-    from ._construction import eg
+    from ._construction import a, an, specifically, eg
     from ._serialisation import (
         as_indent_tree as _as_indent_tree,
         as_key_str as _as_key_str,
     )
-
-    from ._normalised_properties import type_ as type, instance as instance
-    from ._type_checking import type_at_key as _type_at_key, union
-    from ._disassembly import paths
+    from ._type_checking import type_at_key as _type_at_key
     from ._assembly import assembled
+    from ._disassembly import paths_from_object as _paths_from_object
 
     from ._tree_maths import (
         extends,

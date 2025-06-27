@@ -1,4 +1,5 @@
 from __future__ import annotations
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from frozendict import frozendict
@@ -51,8 +52,6 @@ def extends[T](self: PathsOf[T], other: PathsOf[T]) -> bool:
 def _remove_lowest_level[T](
     self: PathsOf[T], depth: int = 0
 ) -> tuple[PathsOf[T], int] | None:
-    from . import PathsOf
-
     if not self.paths:
         return None
 
@@ -65,24 +64,27 @@ def _remove_lowest_level[T](
     )
 
     if not reduced:
-        return PathsOf(self.type, sequence_length=self.sequence_length), depth
+        return replace(self, paths=frozendict()), depth
 
     reduced_child_keys, reduced_children, reduced_child_depths = zip(*reduced)
 
     max_reduced_child_depth = max(reduced_child_depths)
 
     return (
-        PathsOf(self.type, sequence_length=self.sequence_length).eg(
-            {
-                **self,
-                **{
-                    key: reduced_child
-                    for key, reduced_child, reduced_child_depth in zip(
-                        reduced_child_keys, reduced_children, reduced_child_depths
-                    )
-                    if reduced_child_depth == max_reduced_child_depth
-                },
-            }
+        replace(
+            self,
+            paths=frozendict(
+                {
+                    **self,
+                    **{
+                        key: reduced_child
+                        for key, reduced_child, reduced_child_depth in zip(
+                            reduced_child_keys, reduced_children, reduced_child_depths
+                        )
+                        if reduced_child_depth == max_reduced_child_depth
+                    },
+                }
+            ),
         ),
         max_reduced_child_depth,
     )
@@ -155,6 +157,6 @@ def merge[T](
 
     return PathsOf(
         self.type,
-        explicit_paths=frozendict(new_explicit_paths),
+        paths=frozendict(new_explicit_paths),
         sequence_length=self.sequence_length,
     )

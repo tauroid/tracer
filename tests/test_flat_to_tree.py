@@ -2,8 +2,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Collection, Mapping
 
-from frozendict import frozendict
-
 from tracer.tracer import disjunction, link
 from tracer.pathsof import PathsOf
 from tracer.pathsof.wildcard import _
@@ -71,11 +69,11 @@ flat_to_tree = disjunction(
 
 
 def test_a_forward():
-    assert flat_to_tree.trace(a_value_start) == a_value_end
+    assert flat_to_tree.trace(a_start) == a_end
 
 
 def test_a_backward():
-    assert flat_to_tree.reverse.trace(a_value_end) == a_value_start
+    assert flat_to_tree.reverse.trace(a_end) == a_start
 
 
 def test_b_forward():
@@ -102,17 +100,17 @@ def test_d_backward():
     assert flat_to_tree.reverse.trace(d_end) == d_start
 
 
-a_value_start = PathsOf(Collection[Flat]).eg([_, "a"], PathsOf("1"))
-a_value_end = PathsOf(A).eg(["a", _, "key"], PathsOf("1"))
-b_value_start = PathsOf(Collection[Flat]).eg([_, "b"], PathsOf("2"))
-b_value_end = PathsOf(A).eg(["a", _, "value", "b", _, "key"], PathsOf("2"))
-c_value_start = PathsOf(Collection[Flat]).eg([_, "c"], PathsOf("3"))
+a_value_start = PathsOf(Collection[Flat]).eg([_, "a"], PathsOf.a("1"))
+a_value_end = PathsOf(A).eg(["a", _, "key"], PathsOf.a("1"))
+b_value_start = PathsOf(Collection[Flat]).eg([_, "b"], PathsOf.a("2"))
+b_value_end = PathsOf(A).eg(["a", _, "value", "b", _, "key"], PathsOf.a("2"))
+c_value_start = PathsOf(Collection[Flat]).eg([_, "c"], PathsOf.a("3"))
 c_value_end = PathsOf(A).eg(
-    ["a", _, "value", "b", _, "value", "c", _, "key"], PathsOf("3")
+    ["a", _, "value", "b", _, "value", "c", _, "key"], PathsOf.a("3")
 )
-d_value_start = PathsOf(Collection[Flat]).eg([_, "d"], PathsOf("4"))
+d_value_start = PathsOf(Collection[Flat]).eg([_, "d"], PathsOf.a("4"))
 d_value_end = PathsOf(A).eg(
-    ["a", _, "value", "b", _, "value", "c", _, "value", "d", _], PathsOf("4")
+    ["a", _, "value", "b", _, "value", "c", _, "value", "d", _], PathsOf.a("4")
 )
 
 
@@ -152,7 +150,7 @@ def test_a_wildcard_d_fixed():
     start = (
         PathsOf(Collection[Flat])
         .eg([_, "a"], PathsOf(str))
-        .merge(PathsOf(Collection[Flat]).eg([_, "d"], PathsOf("4")))
+        .merge(PathsOf(Collection[Flat]).eg([_, "d"], PathsOf.a("4")))
     )
     end = (
         PathsOf(A)
@@ -160,7 +158,7 @@ def test_a_wildcard_d_fixed():
         .merge(
             PathsOf(A).eg(
                 ["a", _, "value", "b", _, "value", "c", _, "value", "d", _],
-                PathsOf("4"),
+                PathsOf.a("4"),
             )
         )
     )
@@ -191,9 +189,4 @@ tree = A(
 
 def test_flat_to_tree():
     assert flat_to_tree(flat_list) == tree
-    # FIXME this would work if dict was hashable. I think now is
-    #       the time to "hide" the raw PathsOf constructor and
-    #       remove the prototype and instance fields, just storing
-    #       explicit paths. Then it doesn't matter if the
-    #       prototype value is mutable
     assert flat_to_tree.reverse(tree) == flat_list

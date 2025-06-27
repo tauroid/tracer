@@ -1,10 +1,18 @@
 import sys
-from typing import Any, Collection, get_origin
+from typing import Any, Collection, get_args, get_origin
 
 
 def annotation_type(t: type[Any] | str, *, ctx_class: type[Any] | None) -> type[Any]:
     if isinstance(t, str):
-        return eval(t, vars(sys.modules[ctx_class.__module__]))
+        if origin := get_origin(ctx_class):
+            type_subs = {
+                # This feels a mite precarious
+                str(v): t
+                for v, t in zip(origin.__type_params__, get_args(ctx_class))
+            }
+        else:
+            type_subs = {}
+        return eval(t, {**type_subs, **vars(sys.modules[ctx_class.__module__])})
     else:
         return t
 

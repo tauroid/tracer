@@ -21,6 +21,6 @@ reverse = Tracer(forward=reverse_forward, backward=reverse_backward)
 def test_reverse():
     reverse.trace(
         PathsOf(Sequence[str], sequence_length=10).eg(
-            {3: PathsOf("apple"), 7: PathsOf("pear"), 2: PathsOf("banana")},
+            {3: PathsOf.an("apple"), 7: PathsOf.a("pear"), 2: PathsOf.a("banana")},
         )
     )

@@ -9,7 +9,8 @@ from frozendict import frozendict
 
 from .cache import cache
 from .pathsof import PathsOf
-from .pathsof.wildcard import is_wildcard
+from .pathsof.mapping import consolidate_mapping_tree
+from .pathsof.wildcard import Wildcard, is_wildcard
 
 logger = logging.getLogger()
 
@@ -69,11 +70,11 @@ def _place_leaf_subtree[T](
 
     return replace(
         paths_of_target,
-        explicit_instance=None,
-        explicit_paths=frozendict(
+        paths=frozendict(
             {
-                key: _place_leaf_subtree(paths, subtree)
+                Wildcard(placed_paths) if is_wildcard(key) else key: placed_paths
                 for key, paths in paths_of_target.items()
+                for placed_paths in (_place_leaf_subtree(paths, subtree),)
             }
         ),
     )
@@ -132,13 +133,14 @@ def _single_wildcard_subtrees[T](paths: PathsOf[T]) -> Iterator[PathsOf[T]]:
 
         for key, subpaths in paths.items():
             for subtree in _single_wildcard_subtrees(subpaths):
-                yield PathsOf(paths.type, sequence_length=paths.sequence_length).eg(
-                    {key: subtree}
-                )
+                yield replace(paths, paths=frozendict({key: subtree}))
     else:
         for subtrees in product(*map(_single_wildcard_subtrees, paths.values())):
-            yield PathsOf(paths.type, sequence_length=paths.sequence_length).eg(
-                {key: subtree for key, subtree in zip(paths.keys(), subtrees)}
+            yield replace(
+                paths,
+                paths=frozendict(
+                    {key: subtree for key, subtree in zip(paths.keys(), subtrees)}
+                ),
             )
 
 
@@ -174,7 +176,7 @@ def _forward_through_multiple[S, T](
     for subtree in subtrees_iter:
         result = result.merge(single_subtree_forward(subtree))
 
-    return result
+    return consolidate_mapping_tree(result)
 
 
 def disjunction[S, T](members: Collection[Tracer[S, T]]) -> Tracer[S, T]:
@@ -225,7 +227,7 @@ class Tracer[S, T]:
 
     def __call__(self, s: S) -> T:
         # Assumes that result of `trace` is assemblable (should be)
-        return self.trace(PathsOf(s)).assembled
+        return self.trace(PathsOf.an(s)).assembled
 
     @property
     @cache
