@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import Any, Hashable, Iterator, Mapping, cast
+from typing import Any, Hashable, Iterator, Mapping
 
 from frozendict import frozendict
 
