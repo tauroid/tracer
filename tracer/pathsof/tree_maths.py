@@ -1,6 +1,7 @@
 from __future__ import annotations
 from dataclasses import replace
-from typing import TYPE_CHECKING
+from itertools import product
+from typing import TYPE_CHECKING, Iterator
 
 from frozendict import frozendict
 
@@ -113,7 +114,18 @@ def merge[T](
         return self
 
     assert self.type == other.type
-    assert self.sequence_length == other.sequence_length
+
+    # TODO possibly bad to just merge these, not sure
+    if self.sequence_length is not None and other.sequence_length is not None:
+        # assert self.sequence_length == other.sequence_length
+        # FIXME is this right? sequences give me heebie jeebies
+        sequence_length = max(self.sequence_length, other.sequence_length)
+    elif self.sequence_length is not None:
+        sequence_length = self.sequence_length
+    elif other.sequence_length is not None:
+        sequence_length = other.sequence_length
+    else:
+        sequence_length = None
 
     def merge_key(key: PathKey, paths: PathValue):
         if key in new_explicit_paths:
@@ -158,5 +170,91 @@ def merge[T](
     return PathsOf(
         self.type,
         paths=frozendict(new_explicit_paths),
-        sequence_length=self.sequence_length,
+        sequence_length=sequence_length,
     )
+
+
+def single_wildcard_subtrees[T](paths: PathsOf[T]) -> Iterator[PathsOf[T]]:
+    if any(map(is_wildcard, paths)):
+        # Basically if there are any wildcards, we'll also proceed
+        # through the non-wildcard branches one at a time.
+        #
+        # An argument could be made for doing the non-wildcards all
+        # at once, or in contiguous blocks, but this is it for now
+        #
+        # So in presence of wildcards you can't have a mapping
+        # straddling multiple branches (e.g. list elements) (but
+        # without wildcards you can)
+
+        for key, subpaths in paths.items():
+            for subtree in single_wildcard_subtrees(subpaths):
+                yield replace(paths, paths=frozendict({key: subtree}))
+    else:
+        for subtrees in product(*map(single_wildcard_subtrees, paths.values())):
+            yield replace(
+                paths,
+                paths=frozendict(
+                    {key: subtree for key, subtree in zip(paths.keys(), subtrees)}
+                ),
+            )
+
+
+def extract[T](self: PathsOf[T], paths: PathsOf[T]) -> PathsOf[T]:
+    extracted = replace(self, paths=frozendict())
+
+    for subtree in single_wildcard_subtrees(self):
+        if (single_extracted := _extract_single_wildcards(subtree, paths)) is not None:
+            extracted = extracted.merge(single_extracted)
+
+    return extracted
+
+
+def _extract_single_wildcards[T](
+    source: PathsOf[T], paths: PathsOf[T]
+) -> PathsOf[T] | None:
+    if not paths:
+        return source
+
+    if any(not is_wildcard(key) and key not in source for key in paths):
+        # Revisit for sums? Dunno
+        return None
+
+    extracted_paths_unmerged: dict[PathKey, PathValue] = {}
+    for key, subpaths in paths.items():
+        if is_wildcard(key):
+            for source_key, source_subpaths in source.items():
+                extracted = _extract_single_wildcards(source_subpaths, subpaths)
+                if extracted is None:
+                    return None
+                # I'm kind of hoping this conditional (and for
+                # loop) isn't necessary when I get strict about
+                # wildcards only being for collections (and
+                # collections only using wildcards, ...)
+                if is_wildcard(source_key):
+                    source_key = Wildcard(extracted)
+                extracted_paths_unmerged[source_key] = extracted
+        else:
+            extracted = _extract_single_wildcards(source[key], subpaths)
+            if extracted is None:
+                return None
+            extracted_paths_unmerged[key] = extracted
+
+    # Recombine wildcards (`paths` can have multiple, `source` can't)
+    # TODO probably faster if this happened at the top of the tree only
+    #      but then need a merge_wildcards function
+    wc_subpaths = None
+    non_wc_extracted_paths: dict[PathKey, PathValue] = {}
+    for key, subpaths in extracted_paths_unmerged.items():
+        if is_wildcard(key):
+            if wc_subpaths is None:
+                wc_subpaths = subpaths
+            else:
+                wc_subpaths = wc_subpaths.merge(subpaths, merge_wildcards=True)
+        else:
+            non_wc_extracted_paths[key] = subpaths
+
+    extracted_paths = non_wc_extracted_paths
+    if wc_subpaths is not None:
+        extracted_paths[Wildcard(wc_subpaths)] = wc_subpaths
+
+    return replace(source, paths=frozendict(extracted_paths))

@@ -9,6 +9,7 @@ from typing import (
     Callable,
     Collection,
     Mapping,
+    Sequence,
     cast,
     get_origin,
 )
@@ -72,7 +73,7 @@ def assembled[T](self: PathsOf[T]) -> T:
     # TODO Sequence
 
     if issubclass(origin, Collection):
-        if origin == get_origin(Collection[Any]):
+        if origin in map(get_origin, [Collection[Any], Sequence[Any]]):
             origin = tuple
         return cast(Callable[[Any], T], origin)(
             paths.assembled for paths in self.values()

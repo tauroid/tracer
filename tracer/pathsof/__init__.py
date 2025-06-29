@@ -46,8 +46,9 @@ class PathsOf[T](Mapping[PathKey, PathValue]):
     from ._assembly import assembled
     from ._disassembly import paths_from_object as _paths_from_object
 
-    from ._tree_maths import (
+    from .tree_maths import (
         extends,
+        extract,
         covers,
         merge,
         remove_lowest_level,

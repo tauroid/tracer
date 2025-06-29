@@ -1,8 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass, replace
-from itertools import product
 import logging
-from typing import Any, Callable, Collection, Iterator
+from typing import Any, Callable, Collection
 
 from frozendict import frozendict
 
@@ -10,6 +9,7 @@ from frozendict import frozendict
 from .cache import cache
 from .pathsof import PathsOf
 from .pathsof.mapping import consolidate_mapping_tree
+from .pathsof.tree_maths import single_wildcard_subtrees
 from .pathsof.wildcard import Wildcard, is_wildcard
 
 logger = logging.getLogger()
@@ -119,31 +119,6 @@ def link[S, T](s: PathsOf[S], t: PathsOf[T]) -> Tracer[S, T]:
     )
 
 
-def _single_wildcard_subtrees[T](paths: PathsOf[T]) -> Iterator[PathsOf[T]]:
-    if any(map(is_wildcard, paths)):
-        # Basically if there are any wildcards, we'll also proceed
-        # through the non-wildcard branches one at a time.
-        #
-        # An argument could be made for doing the non-wildcards all
-        # at once, or in contiguous blocks, but this is it for now
-        #
-        # So in presence of wildcards you can't have a mapping
-        # straddling multiple branches (e.g. list elements) (but
-        # without wildcards you can)
-
-        for key, subpaths in paths.items():
-            for subtree in _single_wildcard_subtrees(subpaths):
-                yield replace(paths, paths=frozendict({key: subtree}))
-    else:
-        for subtrees in product(*map(_single_wildcard_subtrees, paths.values())):
-            yield replace(
-                paths,
-                paths=frozendict(
-                    {key: subtree for key, subtree in zip(paths.keys(), subtrees)}
-                ),
-            )
-
-
 def _forward_through_multiple[S, T](
     paths: PathsOf[S], forwards: Collection[Callable[[PathsOf[S]], PathsOf[T]]]
 ) -> PathsOf[T]:
@@ -171,7 +146,7 @@ def _forward_through_multiple[S, T](
             result = result.merge(forward(subtree), merge_wildcards=True)
         return result
 
-    subtrees_iter = _single_wildcard_subtrees(paths)
+    subtrees_iter = single_wildcard_subtrees(paths)
     result = single_subtree_forward(next(subtrees_iter))
     for subtree in subtrees_iter:
         result = result.merge(single_subtree_forward(subtree))
