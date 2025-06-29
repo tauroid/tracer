@@ -45,7 +45,7 @@ def specifically[T](self: PathsOf[T], instance: T) -> PathsOf[T]:
 def eg[T](
     self: PathsOf[T],
     paths_or_prefix: Sequence[PathKey],
-    paths: Mapping[PathKey, PathValue],
+    paths: Mapping[PathKey, PathValue] | None = None,
 ) -> PathsOf[T]: ...
 
 
@@ -63,8 +63,7 @@ def eg[T](
     paths: Mapping[PathKey, PathValue] | None = None,
 ) -> PathsOf[T]:
     """This is probably going to end up with bananas syntax"""
-    if paths is None:
-        assert isinstance(paths_or_prefix, Mapping)
+    if isinstance(paths_or_prefix, Mapping):
         return replace(
             self,
             paths=populate_wildcards(paths_or_prefix),
@@ -81,7 +80,9 @@ def eg[T](
 
         key, *rest = paths_or_prefix
         empty_subpaths = PathsOf(self._type_at_key(key))
-        subpaths = empty_subpaths.eg(rest, paths) if rest else empty_subpaths.eg(paths)
+        subpaths = (
+            empty_subpaths.eg(rest, paths) if rest else empty_subpaths.eg(paths or {})
+        )
         return replace(
             self,
             paths=frozendict(

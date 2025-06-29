@@ -200,7 +200,7 @@ class Tracer[S, T]:
         logger.debug(f"Forward: {t}")
         s_ = self.backward(t)
         logger.debug(f"Backward again: {s_}")
-        assert s_.extends(s), f"{s_} does not extend {s}"
+        assert s_.extends(s), f"{s_} via {t} does not extend {s}"
 
     def _check_coherence(
         self,

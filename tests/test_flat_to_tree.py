@@ -35,28 +35,22 @@ class D:
     d: Collection[str]
 
 
-a_pointer = PathsOf(Flat).eg({"a": PathsOf(str)})
-b_pointer = PathsOf(Flat).eg({"b": PathsOf(str)})
-c_pointer = PathsOf(Flat).eg({"c": PathsOf(str)})
-d_pointer = PathsOf(Flat).eg({"d": PathsOf(str)})
+a_pointer = PathsOf(Flat).eg(["a"])
+b_pointer = PathsOf(Flat).eg(["b"])
+c_pointer = PathsOf(Flat).eg(["c"])
+d_pointer = PathsOf(Flat).eg(["d"])
 
 a_start = PathsOf(Collection[Flat]).eg({_: a_pointer})
-a_end = PathsOf(A).eg(["a", _, "key"], PathsOf(str))
+a_end = PathsOf(A).eg(["a", _, "key"])
 
 b_start = PathsOf(Collection[Flat]).eg({_: b_pointer})
-b_end = PathsOf(A).eg(["a", _, "value", "b", _, "key"], PathsOf(str))
+b_end = PathsOf(A).eg(["a", _, "value", "b", _, "key"])
 
 c_start = PathsOf(Collection[Flat]).eg({_: c_pointer})
-c_end = PathsOf(A).eg(
-    ["a", _, "value", "b", _, "value", "c", _, "key"],
-    PathsOf(str),
-)
+c_end = PathsOf(A).eg(["a", _, "value", "b", _, "value", "c", _, "key"])
 
 d_start = PathsOf(Collection[Flat]).eg({_: d_pointer})
-d_end = PathsOf(A).eg(
-    ["a", _, "value", "b", _, "value", "c", _, "value", "d", _],
-    PathsOf(str),
-)
+d_end = PathsOf(A).eg(["a", _, "value", "b", _, "value", "c", _, "value", "d", _])
 
 flat_to_tree = disjunction(
     (
@@ -149,12 +143,12 @@ def test_d_value_backward():
 def test_a_wildcard_d_fixed():
     start = (
         PathsOf(Collection[Flat])
-        .eg([_, "a"], PathsOf(str))
+        .eg([_, "a"])
         .merge(PathsOf(Collection[Flat]).eg([_, "d"], PathsOf.a("4")))
     )
     end = (
         PathsOf(A)
-        .eg(["a", _, "key"], PathsOf(str))
+        .eg(["a", _, "key"])
         .merge(
             PathsOf(A).eg(
                 ["a", _, "value", "b", _, "value", "c", _, "value", "d", _],
