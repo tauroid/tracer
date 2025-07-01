@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from . import PathsOf
 
 from ._disassembly import paths_from_object
+from .mapping import consolidate_mapping_tree
 from .wildcard import Wildcard, is_wildcard, populate_wildcards
 
 from . import PathKey, PathValue
@@ -46,6 +47,8 @@ def eg[T](
     self: PathsOf[T],
     paths_or_prefix: Sequence[PathKey],
     paths: Mapping[PathKey, PathValue] | None = None,
+    *,
+    _consolidate_mappings: bool = True
 ) -> PathsOf[T]: ...
 
 
@@ -54,6 +57,8 @@ def eg[T](
     self: PathsOf[T],
     paths_or_prefix: Mapping[PathKey, PathsOf[Any]],
     paths: None = None,
+    *,
+    _consolidate_mappings: bool = True
 ) -> PathsOf[T]: ...
 
 
@@ -61,10 +66,12 @@ def eg[T](
     self: PathsOf[T],
     paths_or_prefix: Mapping[PathKey, PathValue] | Sequence[PathKey],
     paths: Mapping[PathKey, PathValue] | None = None,
+    *,
+    _consolidate_mappings: bool = True
 ) -> PathsOf[T]:
     """This is probably going to end up with bananas syntax"""
     if isinstance(paths_or_prefix, Mapping):
-        return replace(
+        pathsof = replace(
             self,
             paths=populate_wildcards(paths_or_prefix),
         )
@@ -80,12 +87,15 @@ def eg[T](
 
         key, *rest = paths_or_prefix
         empty_subpaths = PathsOf(self._type_at_key(key))
-        subpaths = (
-            empty_subpaths.eg(rest, paths) if rest else empty_subpaths.eg(paths or {})
-        )
-        return replace(
+        subpaths = empty_subpaths.eg(rest, paths, _consolidate_mappings=False) if rest else empty_subpaths.eg(paths or {}, _consolidate_mappings=False)
+        pathsof = replace(
             self,
             paths=frozendict(
                 {Wildcard(subpaths) if is_wildcard(key) else key: subpaths}
             ),
         )
+
+    if _consolidate_mappings:
+        return consolidate_mapping_tree(pathsof)
+    else:
+        return pathsof
