@@ -45,7 +45,8 @@ class SwapArgs:
 
 sa = PathsOf(SwapArgs)
 
-# This is probably messily specified. Or `swap` is overspecified
+# This is probably messily specified. Or what happens to the "swap"
+# field is overspecified
 swap = disjunction(
     copy(sa.eg(["swap"]), sa.eg(["swap"])),
     conjunction(
