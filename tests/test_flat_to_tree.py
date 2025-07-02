@@ -2,7 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Collection, Mapping
 
-from tracer.tracer import disjunction, link
+from tracer.tracer import copy, disjunction
 from tracer.pathsof import PathsOf
 from tracer.pathsof.wildcard import _
 
@@ -53,12 +53,10 @@ d_start = PathsOf(Collection[Flat]).eg({_: d_pointer})
 d_end = PathsOf(A).eg(["a", _, "value", "b", _, "value", "c", _, "value", "d", _])
 
 flat_to_tree = disjunction(
-    (
-        link(a_start, a_end),
-        link(b_start, b_end),
-        link(c_start, c_end),
-        link(d_start, d_end),
-    ),
+    copy(a_start, a_end),
+    copy(b_start, b_end),
+    copy(c_start, c_end),
+    copy(d_start, d_end),
 )
 
 

@@ -58,8 +58,16 @@ def type_at_key[T](self: PathsOf[T], key: PathKey) -> type[Any]:
             case _:
                 raise Exception("Expected Mapping subclass to have 0 or 2 type args")
 
-    # FIXME dodgy but fast to write (just planning on handling Mapping, Sequence,
-    #       Collection or anything that has the item type as the last typevar)
-    *_, type_arg = get_args(self.type)
+    if issubclass(origin, Collection):
+        match get_args(self.type):
+            case (type_arg,):
+                return type_arg
+            case ():
+                return object
+            case _:
+                raise Exception("Expected Mapping subclass to have 0 or 2 type args")
 
-    return type_arg
+    if self.type is object:
+        return object
+
+    raise Exception(f"Can't get type at {repr(key)} for {repr(self.type)}")

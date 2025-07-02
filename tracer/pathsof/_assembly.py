@@ -34,7 +34,13 @@ def assembled[T](self: PathsOf[T]) -> T:
     from . import PathsOf
 
     match self.type:
-        case datetime.datetime | builtins.str | builtins.int | types.NoneType:
+        case (
+            datetime.datetime
+            | builtins.str
+            | builtins.int
+            | builtins.bool
+            | types.NoneType
+        ):
             match tuple(self.keys()):
                 case (key,):
                     return cast(T, key)

@@ -48,7 +48,7 @@ def eg[T](
     paths_or_prefix: Sequence[PathKey],
     paths: Mapping[PathKey, PathValue] | None = None,
     *,
-    _consolidate_mappings: bool = True
+    _consolidate_mappings: bool = True,
 ) -> PathsOf[T]: ...
 
 
@@ -58,7 +58,7 @@ def eg[T](
     paths_or_prefix: Mapping[PathKey, PathsOf[Any]],
     paths: None = None,
     *,
-    _consolidate_mappings: bool = True
+    _consolidate_mappings: bool = True,
 ) -> PathsOf[T]: ...
 
 
@@ -67,7 +67,7 @@ def eg[T](
     paths_or_prefix: Mapping[PathKey, PathValue] | Sequence[PathKey],
     paths: Mapping[PathKey, PathValue] | None = None,
     *,
-    _consolidate_mappings: bool = True
+    _consolidate_mappings: bool = True,
 ) -> PathsOf[T]:
     """This is probably going to end up with bananas syntax"""
     if isinstance(paths_or_prefix, Mapping):
@@ -87,7 +87,11 @@ def eg[T](
 
         key, *rest = paths_or_prefix
         empty_subpaths = PathsOf(self._type_at_key(key))
-        subpaths = empty_subpaths.eg(rest, paths, _consolidate_mappings=False) if rest else empty_subpaths.eg(paths or {}, _consolidate_mappings=False)
+        subpaths = (
+            empty_subpaths.eg(rest, paths, _consolidate_mappings=False)
+            if rest
+            else empty_subpaths.eg(paths or {}, _consolidate_mappings=False)
+        )
         pathsof = replace(
             self,
             paths=frozendict(

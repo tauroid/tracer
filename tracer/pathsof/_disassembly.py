@@ -35,7 +35,7 @@ def paths_from_object[T](t: type[T], instance: T) -> frozendict[PathKey, PathVal
     match instance:
         case EllipsisType():
             return frozendict()
-        case datetime() | str() | int() | None:
+        case datetime() | str() | int() | bool() | None:
             return frozendict({instance: PathsOf(EllipsisType)})
         case _:
             pass

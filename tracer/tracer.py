@@ -18,33 +18,28 @@ logger = logging.getLogger()
 def _get_identical_leaf_subtree[T](
     possibilities: PathsOf[T], selection: PathsOf[T]
 ) -> PathsOf[Any] | None:
-    # `not selection` means the selection was above the `possibilities` leaves.
-    # In this case we don't want a subtree (there being a subtree in another
-    # branch could be meaningful, but I'm choosing to complain rather than
-    # implicitly substitute a copy, given the user is being vague).
-    if not possibilities or not selection:
+    if not possibilities:
         return selection
 
-    subtrees = (
-        _get_identical_leaf_subtree(possibilities[possibilities_key], selection_subtree)
-        for possibilities_key in possibilities
-        # possibilities just has to be covered. Unfortunately
-        # wildcards make it so multiple selection subtrees can
-        # match a possibilities subtree but only one of them
-        # needs to cover it. So some selection subtrees might
-        # have partial coverage
-        for selection_subtree in (
-            *(
-                (selection[possibilities_key],)
-                if possibilities_key in selection
-                else ()
-            ),
-            *(
-                subtree
-                for selection_key, subtree in selection.items()
-                if is_wildcard(selection_key)
-            ),
+    possibility_selections = {
+        key: (
+            (
+                *((selection[key],) if key in selection else ()),
+                *(
+                    subtree
+                    for selection_key, subtree in selection.items()
+                    if is_wildcard(selection_key)
+                ),
+            )
+            or (PathsOf(selection._type_at_key(key)),)
         )
+        for key in possibilities
+    }
+
+    subtrees = (
+        _get_identical_leaf_subtree(possibilities[key], selection_subtree)
+        for key in possibilities
+        for selection_subtree in possibility_selections[key]
     )
 
     subtrees = tuple(subtree for subtree in subtrees if subtree is not None)
@@ -56,7 +51,9 @@ def _get_identical_leaf_subtree[T](
 
     for subtree in rest:
         if subtree != first:
-            raise Exception(f"Different subtrees in copy: {first} and {subtree}")
+            raise Exception(
+                f"Different subtrees in copy: {repr(first)} and {repr(subtree)}"
+            )
 
     return first
 
@@ -81,7 +78,7 @@ def _place_leaf_subtree[T](
 
 
 def _forward_from_link[S, T](
-    link_source: PathsOf[S], link_target: PathsOf[T], copy: bool = True
+    link_source: PathsOf[S], link_target: PathsOf[T], copy: bool
 ) -> Callable[[PathsOf[S]], PathsOf[T]]:
     """
     `copy` determines what to do about subpaths if there are any
@@ -112,15 +109,22 @@ def _forward_from_link[S, T](
     return forward
 
 
-def link[S, T](s: PathsOf[S], t: PathsOf[T]) -> Tracer[S, T]:
+def link[S, T](s: PathsOf[S], t: PathsOf[T], *, _copy: bool = False) -> Tracer[S, T]:
     return Tracer(
-        forward=_forward_from_link(s, t),
-        backward=_forward_from_link(t, s),
+        forward=_forward_from_link(s, t, _copy),
+        backward=_forward_from_link(t, s, _copy),
     )
 
 
+def copy[S, T](s: PathsOf[S], t: PathsOf[T]) -> Tracer[S, T]:
+    return link(s, t, _copy=True)
+
+
 def _forward_through_multiple[S, T](
-    paths: PathsOf[S], forwards: Collection[Callable[[PathsOf[S]], PathsOf[T]]]
+    paths: PathsOf[S],
+    forwards: Collection[Callable[[PathsOf[S]], PathsOf[T]]],
+    *,
+    _conjunction: bool,
 ) -> PathsOf[T]:
     """
     Opinionated way of putting a single `PathsOf` through multiple
@@ -137,13 +141,28 @@ def _forward_through_multiple[S, T](
     wildcards, but until I think about that more, those scare
     quotes remain firmly installed. It is certainly not the only
     way to deal with wildcards.
+
+    `_conjunction` means that, for a particular input, all of
+    `forwards` must produce a (nonempty) tree, otherwise the
+    result is discarded. Being false ("disjunction") means that
+    the empty trees are merged in with the nonempty regardless.
     """
 
     def single_subtree_forward(subtree: PathsOf[S]) -> PathsOf[T]:
         first, *rest = forwards
         result = first(subtree)
+
+        if _conjunction and not result:
+            return result
+
         for forward in rest:
-            result = result.merge(forward(subtree), merge_wildcards=True)
+            forwarded = forward(subtree)
+
+            if _conjunction and not forwarded:
+                return forwarded
+
+            result = result.merge(forwarded, merge_wildcards=True)
+
         return result
 
     subtrees_iter = single_wildcard_subtrees(paths)
@@ -154,15 +173,27 @@ def _forward_through_multiple[S, T](
     return consolidate_mapping_tree(result)
 
 
-def disjunction[S, T](members: Collection[Tracer[S, T]]) -> Tracer[S, T]:
+def _combination[S, T](*members: Tracer[S, T], _conjunction: bool) -> Tracer[S, T]:
 
     def forward(s: PathsOf[S]) -> PathsOf[T]:
-        return _forward_through_multiple(s, tuple(m.forward for m in members))
+        return _forward_through_multiple(
+            s, tuple(m.forward for m in members), _conjunction=_conjunction
+        )
 
     def backward(t: PathsOf[T]) -> PathsOf[S]:
-        return _forward_through_multiple(t, tuple(m.backward for m in members))
+        return _forward_through_multiple(
+            t, tuple(m.backward for m in members), _conjunction=_conjunction
+        )
 
     return Tracer(forward=forward, backward=backward)
+
+
+def conjunction[S, T](*members: Tracer[S, T]) -> Tracer[S, T]:
+    return _combination(*members, _conjunction=True)
+
+
+def disjunction[S, T](*members: Tracer[S, T]) -> Tracer[S, T]:
+    return _combination(*members, _conjunction=False)
 
 
 @dataclass(frozen=True, kw_only=True)

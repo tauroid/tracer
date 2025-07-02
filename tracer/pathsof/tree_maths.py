@@ -106,13 +106,6 @@ def remove_lowest_level[T](self: PathsOf[T]) -> PathsOf[T]:
 def merge[T](
     self: PathsOf[T], other: PathsOf[T], *, merge_wildcards: bool = False
 ) -> PathsOf[T]:
-    # Importing properly seems to have inevitable loop
-    from . import PathsOf
-
-    if not self.paths and not other.paths:
-        assert self == other
-        return self
-
     assert self.type == other.type
 
     # TODO possibly bad to just merge these, not sure
@@ -126,6 +119,12 @@ def merge[T](
         sequence_length = other.sequence_length
     else:
         sequence_length = None
+
+    if not self.paths and not other.paths:
+        return replace(self, sequence_length=sequence_length)
+
+    # Importing properly seems to have inevitable loop
+    from . import PathsOf
 
     def merge_key(key: PathKey, paths: PathValue):
         if key in new_explicit_paths:
