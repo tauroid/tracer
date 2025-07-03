@@ -104,23 +104,21 @@ def remove_lowest_level[T](self: PathsOf[T]) -> PathsOf[T]:
 
 
 def merge[T](
-    self: PathsOf[T], other: PathsOf[T], *, merge_wildcards: bool = False
+    self: PathsOf[T], *others: PathsOf[T], merge_wildcards: bool = False
 ) -> PathsOf[T]:
-    assert self.type == other.type
+    for other in others:
+        assert self.type == other.type, f"{self.type} != {other.type}"
 
     # TODO possibly bad to just merge these, not sure
-    if self.sequence_length is not None and other.sequence_length is not None:
+    not_none_sequence_lengths = tuple(paths.sequence_length for paths in (self, *others) if paths.sequence_length is not None)
+    if not_none_sequence_lengths:
         # assert self.sequence_length == other.sequence_length
         # FIXME is this right? sequences give me heebie jeebies
-        sequence_length = max(self.sequence_length, other.sequence_length)
-    elif self.sequence_length is not None:
-        sequence_length = self.sequence_length
-    elif other.sequence_length is not None:
-        sequence_length = other.sequence_length
+        sequence_length = max(not_none_sequence_lengths)
     else:
         sequence_length = None
 
-    if not self.paths and not other.paths:
+    if not any(paths.paths for paths in (self, *others)):
         return replace(self, sequence_length=sequence_length)
 
     # Importing properly seems to have inevitable loop
@@ -150,21 +148,23 @@ def merge[T](
                     f"{self}"
                 )
 
-        for key, paths in other.items():
-            if is_wildcard(key):
-                if wc_subtree is not None:
-                    wc_subtree = wc_subtree.merge(paths, merge_wildcards=True)
+        for other in others:
+            for key, paths in other.items():
+                if is_wildcard(key):
+                    if wc_subtree is not None:
+                        wc_subtree = wc_subtree.merge(paths, merge_wildcards=True)
+                    else:
+                        wc_subtree = paths
                 else:
-                    wc_subtree = paths
-            else:
-                merge_key(key, paths)
+                    merge_key(key, paths)
 
         if wc_subtree is not None:
             merge_key(Wildcard(wc_subtree), wc_subtree)
     else:
         new_explicit_paths = dict(self)
-        for key, paths in other.items():
-            merge_key(key, paths)
+        for other in others:
+            for key, paths in other.items():
+                merge_key(key, paths)
 
     return PathsOf(
         self.type,
