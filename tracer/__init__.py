@@ -1,4 +1,10 @@
-from .tracer import Tracer as Tracer, disjunction as disjunction, link as link
+from .tracer import (
+    Tracer as Tracer,
+    copy as copy,
+    conjunction as conjunction,
+    disjunction as disjunction,
+    link as link,
+)
 from .pathsof import (
     PathsOf as PathsOf,
     PathKey as PathKey,
