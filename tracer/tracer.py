@@ -173,7 +173,9 @@ def _forward_through_multiple[S, T](
     return consolidate_mapping_tree(result)
 
 
-def _combination[S, T](*members: Tracer[S, T], _conjunction: bool) -> Tracer[S, T]:
+def _combination[S, T](
+    *members: Tracer[S, T], _conjunction: bool, fully_specified: bool
+) -> Tracer[S, T]:
 
     def forward(s: PathsOf[S]) -> PathsOf[T]:
         return _forward_through_multiple(
@@ -185,21 +187,26 @@ def _combination[S, T](*members: Tracer[S, T], _conjunction: bool) -> Tracer[S, 
             t, tuple(m.backward for m in members), _conjunction=_conjunction
         )
 
-    return Tracer(forward=forward, backward=backward)
+    return Tracer(forward=forward, backward=backward, fully_specified=fully_specified)
 
 
-def conjunction[S, T](*members: Tracer[S, T]) -> Tracer[S, T]:
-    return _combination(*members, _conjunction=True)
+def conjunction[S, T](
+    *members: Tracer[S, T], fully_specified: bool = True
+) -> Tracer[S, T]:
+    return _combination(*members, _conjunction=True, fully_specified=fully_specified)
 
 
-def disjunction[S, T](*members: Tracer[S, T]) -> Tracer[S, T]:
-    return _combination(*members, _conjunction=False)
+def disjunction[S, T](
+    *members: Tracer[S, T], fully_specified: bool = True
+) -> Tracer[S, T]:
+    return _combination(*members, _conjunction=False, fully_specified=fully_specified)
 
 
 @dataclass(frozen=True, kw_only=True)
 class Tracer[S, T]:
     forward: Callable[[PathsOf[S]], PathsOf[T]]
     backward: Callable[[PathsOf[T]], PathsOf[S]]
+    fully_specified: bool = True
 
     def _check_roundtripping(self, s: PathsOf[S], t: PathsOf[T]):
         logger.debug(f"Start: {s}")
@@ -222,7 +229,8 @@ class Tracer[S, T]:
         if not skip_target_check:
             assert t.covers(t0), f"{t} does not cover {t0}"
 
-        self._check_roundtripping(s, t)
+        if self.fully_specified:
+            self._check_roundtripping(s, t)
 
         self._check_coherence(s.remove_lowest_level_or_none(), t0, False)
 
@@ -238,4 +246,14 @@ class Tracer[S, T]:
     @property
     @cache
     def reverse(self):
-        return Tracer(forward=self.backward, backward=self.forward)
+        return Tracer(
+            forward=self.backward,
+            backward=self.forward,
+            fully_specified=self.fully_specified,
+        )
+
+    def loop(
+        self, t_query: PathsOf[T], resource: Callable[[PathsOf[S]], PathsOf[S]]
+    ) -> PathsOf[T]:
+        s_query = self.reverse.trace(t_query)
+        return self.trace(resource(s_query).extract(s_query)).extract(t_query)

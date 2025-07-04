@@ -1,8 +1,19 @@
 from __future__ import annotations
-from dataclasses import replace
-from typing import TYPE_CHECKING, Any, Mapping, Sequence, cast, get_origin, overload
+from dataclasses import fields, is_dataclass, replace
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Collection,
+    Mapping,
+    Sequence,
+    cast,
+    get_origin,
+    overload,
+)
 
 from frozendict import frozendict
+
+from tracer.pathsof._type_checking import union
 
 
 if TYPE_CHECKING:
@@ -103,3 +114,41 @@ def eg[T](
         return consolidate_mapping_tree(pathsof)
     else:
         return pathsof
+
+
+def all_keys[T](t: type[T]) -> Collection[PathKey]:
+    if t_union := union(t):
+        return t_union
+
+    origin = get_origin(t) or t
+
+    if is_dataclass(origin):
+        return tuple(f.name for f in fields(origin))
+
+    # str is a Collection but damned if I'll treat it as one
+    if t is str:
+        return ()
+
+    if issubclass(origin, Collection):
+        return (Wildcard(),)
+
+    return ()
+
+
+@property
+def full[T](self: PathsOf[T]) -> PathsOf[T]:
+    if self.paths or self.sequence_length is not None:
+        raise Exception("`full` is only allowed on an empty tree")
+
+    from . import PathsOf
+
+    return replace(
+        self,
+        paths=frozendict(
+            {
+                Wildcard(full_at_key) if is_wildcard(key) else key: full_at_key
+                for key in all_keys(self.type)
+                for full_at_key in (PathsOf(self._type_at_key(key)).full,)
+            }
+        ),
+    )
