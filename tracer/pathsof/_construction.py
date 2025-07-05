@@ -152,3 +152,39 @@ def full[T](self: PathsOf[T]) -> PathsOf[T]:
             }
         ),
     )
+
+
+def snip_off[T](self: PathsOf[T], path: Sequence[PathKey]) -> PathsOf[T]:
+    """
+    Snips off the actual key of the end of `path`
+
+    I.e. PathsOf(...).eg(["a", "b", "c"]).snip_off(["a", "b", "c"])
+    will end up as PathsOf(...).eg(["a", "b"])
+    """
+    first, *rest = path
+
+    if rest:
+        return replace(
+            self,
+            paths=frozendict(
+                {
+                    key: (
+                        subpaths.snip_off(rest)
+                        if is_wildcard(first) or key == first
+                        else subpaths
+                    )
+                    for key, subpaths in self.items()
+                }
+            ),
+        )
+    else:
+        return replace(
+            self,
+            paths=frozendict(
+                {
+                    key: subpaths
+                    for key, subpaths in self.items()
+                    if not (is_wildcard(first) or key == first)
+                }
+            ),
+        )

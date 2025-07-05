@@ -54,10 +54,7 @@ def assembled[T](self: PathsOf[T]) -> T:
     if is_dataclass(self.type):
         return self.type(
             **{
-                f.name: self.get(
-                    f.name,
-                    PathsOf(annotation_type(f.type, ctx_class=self.type)),
-                ).assembled
+                f.name: self[f.name].assembled if f.name in self else Hole()
                 for f in fields(self.type)
             }
         )

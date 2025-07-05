@@ -9,7 +9,7 @@ from frozendict import frozendict
 from .cache import cache
 from .pathsof import PathsOf
 from .pathsof.mapping import consolidate_mapping_tree
-from .pathsof.tree_maths import single_wildcard_subtrees
+from .pathsof.tree_maths.single_wildcard_subtrees import single_wildcard_subtrees
 from .pathsof.wildcard import Wildcard, is_wildcard
 
 logger = logging.getLogger()
@@ -256,4 +256,13 @@ class Tracer[S, T]:
         self, t_query: PathsOf[T], resource: Callable[[PathsOf[S]], PathsOf[S]]
     ) -> PathsOf[T]:
         s_query = self.reverse.trace(t_query)
-        return self.trace(resource(s_query).extract(s_query)).extract(t_query)
+        return self.trace(resource(s_query).extract(s_query)).extract(
+            t_query,
+            # The logic here is, if it's fully specified, then the round trip
+            # should have brought back all the requested data. But no such
+            # guarantee for partially specified. `must_match_all` does need to
+            # special case for sums if this is going to work though (you can
+            # legitimately query both sum branches, but not legitimately expect
+            # data back on _both_)
+            must_match_all=self.fully_specified,
+        )
