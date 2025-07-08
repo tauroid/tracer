@@ -37,7 +37,7 @@ class PathsOf[T](Mapping[PathKey, PathValue]):
     def __len__(self) -> int:
         return len(self.paths)
 
-    from ._construction import a, an, specifically, eg, full
+    from ._construction import a, an, specifically, eg, full, snip_off
     from ._serialisation import (
         as_indent_tree as _as_indent_tree,
         as_key_str as _as_key_str,
