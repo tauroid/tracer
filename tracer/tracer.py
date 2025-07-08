@@ -1,13 +1,13 @@
 from __future__ import annotations
 from dataclasses import dataclass, replace
 import logging
-from typing import Any, Callable, Collection
+from typing import Any, Callable, Collection, Sequence
 
 from frozendict import frozendict
 
 
 from .cache import cache
-from .pathsof import PathsOf
+from .pathsof import PathKey, PathsOf
 from .pathsof.mapping import consolidate_mapping_tree
 from .pathsof.tree_maths import single_wildcard_subtrees
 from .pathsof.wildcard import Wildcard, is_wildcard
@@ -52,7 +52,7 @@ def _get_identical_leaf_subtree[T](
     for subtree in rest:
         if subtree != first:
             raise Exception(
-                f"Different subtrees in copy: {repr(first)} and {repr(subtree)}"
+                f"Different leaf subtrees: {repr(first)} and {repr(subtree)}"
             )
 
     return first
@@ -78,7 +78,10 @@ def _place_leaf_subtree[T](
 
 
 def _forward_from_link[S, T](
-    link_source: PathsOf[S], link_target: PathsOf[T], copy: bool
+    link_source: PathsOf[S],
+    link_target: PathsOf[T],
+    *,
+    leaf_mapping: Callable[[PathsOf[Any]], PathsOf[Any]] | None = None,
 ) -> Callable[[PathsOf[S]], PathsOf[T]]:
     """
     `copy` determines what to do about subpaths if there are any
@@ -95,13 +98,13 @@ def _forward_from_link[S, T](
 
     def forward(s: PathsOf[S]) -> PathsOf[T]:
         if s.covers(link_source):
-            if copy:
+            if leaf_mapping is not None:
                 subtree = _get_identical_leaf_subtree(link_source, s)
                 # Due to wildcard weirdness and recursion the return type
                 # has a possibility of None, but due to `s` covering
                 # `link_source` we should get a subtree out
                 assert subtree is not None
-                return _place_leaf_subtree(link_target, subtree)
+                return _place_leaf_subtree(link_target, leaf_mapping(subtree))
             return link_target
         else:
             return PathsOf(link_target.type)
@@ -109,15 +112,26 @@ def _forward_from_link[S, T](
     return forward
 
 
-def link[S, T](s: PathsOf[S], t: PathsOf[T], *, _copy: bool = False) -> Tracer[S, T]:
+def link[S, T](
+    s: PathsOf[S],
+    t: PathsOf[T],
+    *,
+    leaf_mapping: Tracer[Any, Any] | None = None,
+) -> Tracer[S, T]:
     return Tracer(
-        forward=_forward_from_link(s, t, _copy),
-        backward=_forward_from_link(t, s, _copy),
+        forward=_forward_from_link(
+            s, t, leaf_mapping=leaf_mapping.trace if leaf_mapping else None
+        ),
+        backward=_forward_from_link(
+            t, s, leaf_mapping=leaf_mapping.reverse.trace if leaf_mapping else None
+        ),
     )
 
 
 def copy[S, T](s: PathsOf[S], t: PathsOf[T]) -> Tracer[S, T]:
-    return link(s, t, _copy=True)
+    return link(
+        s, t, leaf_mapping=Tracer[Any, Any](forward=lambda x: x, backward=lambda x: x)
+    )
 
 
 def _forward_through_multiple[S, T](
@@ -202,6 +216,27 @@ def disjunction[S, T](
     return _combination(*members, _conjunction=False, fully_specified=fully_specified)
 
 
+def opaque[S, T](
+    *, forward: Callable[[S], T], backward: Callable[[T], S]
+) -> Tracer[S, T]:
+    """
+    Not thinking about this very hard
+
+    I guess depending on the actual implementations of `forward`
+    and `backward` this can be somewhat non-opaque but in
+    generality it's just "give whole specific input, get whole
+    specific output"
+
+    Also should have some kind of human informational description
+    field on these
+    """
+    return Tracer(
+        forward=lambda s: PathsOf.a(forward(s.assembled)),
+        backward=lambda t: PathsOf.a(backward(t.assembled)),
+        fully_specified=False,
+    )
+
+
 @dataclass(frozen=True, kw_only=True)
 class Tracer[S, T]:
     forward: Callable[[PathsOf[S]], PathsOf[T]]
@@ -229,14 +264,14 @@ class Tracer[S, T]:
         if not skip_target_check:
             assert t.covers(t0), f"{t} does not cover {t0}"
 
-        if self.fully_specified:
-            self._check_roundtripping(s, t)
+        self._check_roundtripping(s, t)
 
         self._check_coherence(s.remove_lowest_level_or_none(), t0, False)
 
     def trace(self, s: PathsOf[S]) -> PathsOf[T]:
         t = self.forward(s)
-        self._check_coherence(s, t)
+        if self.fully_specified:
+            self._check_coherence(s, t)
         return t
 
     def __call__(self, s: S) -> T:

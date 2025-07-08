@@ -1,13 +1,15 @@
 from __future__ import annotations
+import builtins
 from dataclasses import fields, is_dataclass
+import datetime
 from types import UnionType
+import types
 from typing import (
     TYPE_CHECKING,
     Any,
     Collection,
     Mapping,
     Union,
-    cast,
     get_args,
     get_origin,
 )
@@ -37,6 +39,18 @@ def type_at_key[T](self: PathsOf[T], key: PathKey) -> type[Any]:
         assert isinstance(key, type)
         assert key in t_union
         return key
+
+    match self.type:
+        case (
+            datetime.datetime
+            | builtins.str
+            | builtins.int
+            | builtins.bool
+            | types.NoneType
+        ):
+            return types.EllipsisType
+        case _:
+            pass
 
     origin = get_origin(self.type) or self.type
 

@@ -1,14 +1,18 @@
 from __future__ import annotations
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING, Any, Mapping, get_origin
+from typing import TYPE_CHECKING, Any, Mapping, Sequence, get_origin
 
 from frozendict import frozendict
 
 if TYPE_CHECKING:
     from . import PathsOf
 
+
+from . import PathKey
+
 from .hole import Hole, is_hole
-from .wildcard import Wildcard, is_wildcard
+from .tree_maths import merge
+from .wildcard import Wildcard, is_wildcard, _
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -17,11 +21,34 @@ class MappingItem[K, V]:
     value: V
 
 
+def mapping_path[T](
+    t: type[T], path: Sequence[PathKey], *, _prefix: Sequence[PathKey] = ()
+) -> PathsOf[T]:
+    from . import PathsOf
+
+    first, *rest = path
+    next_prefix = (*_prefix, _, "value")
+    mapping_first = merge(
+        PathsOf(t).eg((*_prefix, _, "key", first)),
+        PathsOf(t).eg(next_prefix),
+        merge_wildcards=True,
+    )
+
+    if not rest:
+        return mapping_first
+    else:
+        return merge(
+            mapping_first,
+            mapping_path(t, rest, _prefix=next_prefix),
+            merge_wildcards=True,
+        )
+
+
 def consolidate_mapping_tree[T](paths: PathsOf[T]) -> PathsOf[T]:
     """
     Merge paths with the same (mapping) key (recursive)
     """
-    from . import PathKey, PathValue
+    from . import PathValue
 
     origin = get_origin(paths.type) or paths.type
 

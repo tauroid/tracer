@@ -4,6 +4,7 @@ from .tracer import (
     conjunction as conjunction,
     disjunction as disjunction,
     link as link,
+    opaque as opaque,
 )
 from .pathsof import (
     PathsOf as PathsOf,
