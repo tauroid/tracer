@@ -33,32 +33,23 @@ def transform_model(model: InputModel) -> OutputModel: ...
 
 
 # Narrow a tracing function by supplying sub areas of `S` and `T`
-# This obviously has no guarantee `S`, `T`, `A` and `B` are related,
-# but see below...
+# This has no guarantee `A` and `B` live within `S` and `T`
+#
+# The trick is that `a` and `b` will be called with something like
+# a mock object, which records (nested) accessed attributes
+#
+# Then `focus` can narrow down just to those
 def focus[S, T, *A, B](
-    f: Callable[[S], T], a: tuple[*A], b: B
+    f: Callable[[S], T], a: Callable[[S], tuple[*A]], b: Callable[[T], B]
 ) -> Callable[[*A], B]: ...
 
-
-# This is a lie to the type system, it creates a special object
-# we can use to implement `focus` by narrowing the tracing
-#
-# Accessing attributes of this special object extrudes a sort of index
-# into `T`. I.e. A linear (always?) `PathsOf` from this repo
-#
-# Name is just riffing on "lens"
-def create_aperture[T](t: type[T]) -> T: ...
-
-
-input_aperture = create_aperture(InputModel)
-output_aperture = create_aperture(OutputModel)
 
 # Type of `transform_parameters` is inferred as
 # (list[InputParameter], datetime) -> list[OutputParameter]
 transform_parameters = focus(
     transform_model,
-    (input_aperture.parameters, input_aperture.time),
-    output_aperture.parameters,
+    lambda input_model: (input_model.parameters, input_model.time),
+    lambda output_model: output_model.parameters,
 )
 
 # transform_parameters([x, y], datetime(2024, 5, 12))
@@ -67,7 +58,7 @@ transform_parameters = focus(
 # transform_parameters.reverse([z])
 # >>> ([InputParameter(...), InputParameter(...)], datetime(...))
 #
-# How can the reverse traced time be meaningful...
+# (How can the reverse traced `time` be meaningful...)
 
 # If for some reason one of the output parameters depends on e.g. the input
 # model name (outside the focussed tracing area), that's a runtime error
